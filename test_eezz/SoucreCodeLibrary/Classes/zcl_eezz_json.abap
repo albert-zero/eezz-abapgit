@@ -24,57 +24,65 @@
 *
 *    The class generates method calls to cl_eezz_table objects 
 * -------------------------------------------------------------
-class zcl_eezz_json definition
+class ZCL_EEZZ_JSON definition
   public
   final
   create public .
 
-  public section.
+public section.
 
-    class-methods gen_header_event
-      importing
-        !iv_name         type string
-        !iv_index        type int4
-      returning
-        value(ev_update) type string .
-    methods get
-      importing
-        !iv_path      type string
-      returning
-        value(rt_obj) type ref to ztty_eezz_json .
-    methods get_range
-      importing
-        !iv_names       type ref to ztty_eezz_row
-      returning
-        value(rt_range) type ref to ztty_eezz_row .
-    methods constructor
-      importing
-        !iv_json       type string
-        !iv_conv_qmark type boolean default 'X' .
-    methods get_update
-      returning
-        value(et_eezz_json) type ref to ztty_eezz_parameter .
-    methods callback
-      importing
-        !iv_symbols     type ref to ztty_global_symbols
-      returning
-        value(rt_table) type ref to zif_eezz_table .
-    class-methods set_update
-      importing
-        !iv_update       type ztty_eezz_parameter
-      returning
-        value(ev_update) type string .
-    methods get_value
-      importing
-        !iv_path        type string
-      returning
-        value(rv_value) type string .
-    methods gen_row_event
-      importing
-        !iv_name         type string
-        !iv_index        type int4
-      returning
-        value(ev_result) type string .
+  class-methods GEN_RESPONSE
+    importing
+      !IT_UPDATE type ref to ZTTY_UPDATE
+    returning
+      value(RV_JSON) type STRING .
+  class-methods GEN_HEADER_EVENT
+    importing
+      !IV_NAME type STRING
+      !IV_INDEX type INT4
+    returning
+      value(EV_UPDATE) type STRING .
+  methods GET
+    importing
+      !IV_PATH type STRING optional
+    returning
+      value(RT_OBJ) type ref to ZTTY_EEZZ_JSON .
+  methods GET_RANGE
+    importing
+      !IV_NAMES type ref to ZTTY_EEZZ_ROW
+    returning
+      value(RT_RANGE) type ref to ZTTY_EEZZ_ROW .
+  methods CONSTRUCTOR
+    importing
+      !IV_JSON type STRING
+      !IV_CONV_QMARK type BOOLEAN default 'X' .
+  methods GET_UPDATE
+    returning
+      value(ET_EEZZ_JSON) type ref to ZTTY_EEZZ_JSON .
+  methods CALLBACK
+    importing
+      !IV_SYMBOLS type ref to ZTTY_SYMBOLS
+      !IV_PARAMETER type ref to ZTTY_EEZZ_JSON optional
+      !IV_PATH type STRING optional
+    returning
+      value(RT_TABLE) type ref to ZIF_EEZZ_TABLE .
+  class-methods SET_UPDATE
+    importing
+      !IV_UPDATE type ZTTY_EEZZ_JSON
+    returning
+      value(EV_UPDATE) type STRING .
+  methods GET_VALUE
+    importing
+      !IV_PATH type STRING
+    returning
+      value(RV_VALUE) type STRING .
+  methods GEN_ROW_EVENT
+    importing
+      !IV_NAME type STRING
+      !IV_INDEX type INT4
+      !IV_DICTIONARY type ref to ZTTY_DICTIONARY optional
+    returning
+      value(EV_RESULT) type STRING .
   protected section.
   private section.
 
@@ -90,7 +98,9 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
 * <SIGNATURE>---------------------------------------------------------------------------------------+
 * | Instance Public Method ZCL_EEZZ_JSON->CALLBACK
 * +-------------------------------------------------------------------------------------------------+
-* | [--->] IV_SYMBOLS                     TYPE REF TO ZTTY_GLOBAL_SYMBOLS
+* | [--->] IV_SYMBOLS                     TYPE REF TO ZTTY_SYMBOLS
+* | [--->] IV_PARAMETER                   TYPE REF TO ZTTY_EEZZ_JSON(optional)
+* | [--->] IV_PATH                        TYPE        STRING(optional)
 * | [<-()] RT_TABLE                       TYPE REF TO ZIF_EEZZ_TABLE
 * +--------------------------------------------------------------------------------------</SIGNATURE>
   method callback.
@@ -105,8 +115,13 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
 
     field-symbols <fs_data> type any.
     data x_ref_data type ref to data.
+    data x_ref_oref type ref to object.
     data x_ref_obj  type ref to zif_eezz_table.
     data x_tbl_obj  type ref to zif_eezz_table.
+
+    if iv_path is NOT INITIAL.
+      x_tbl_callback = me->get( iv_path ).
+    endif.
 
     if x_tbl_callback is initial.
       x_tbl_callback = me->get( 'callback' ).
@@ -123,43 +138,61 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
     split x_tbl_callback->*[ 1 ]-c_key at '.' into x_class_name x_method_name.
 
     try.
+        x_tbl_parameter   = cast #( x_tbl_callback->*[ 1 ]-c_ref ).
+
         if strlen( x_method_name ) = 0.
           x_method_name = 'CONSTRUCTOR'.
-          "x_tbl_parameter = cast #( x_tbl_callback->*[ 1 ]-c_ref ).
-          "if lines( x_tbl_parameter->* ) > 0.
-          "  create object x_tbl_obj type (x_class_name) exporting table_name = x_tbl_parameter->*[ 1 ]-c_value.
-          "else.
-          "  create object x_tbl_obj type (x_class_name).
-          "endif.
-          "rt_table ?= x_tbl_obj.
-          "return.
-          data(lo_cref)   = cast cl_abap_classdescr( cl_abap_classdescr=>describe_by_name( x_class_name ) ).
+          data(lo_cref) = cast cl_abap_classdescr( cl_abap_classdescr=>describe_by_name( x_class_name ) ).
         else.
           translate x_method_name to upper case.
-          x_ref_obj     ?= iv_symbols->*[ c_name = x_class_name ]-c_object.
-          lo_cref        = cast cl_abap_classdescr( cl_abap_classdescr=>describe_by_object_ref( x_ref_obj ) ).
+          x_ref_obj    ?= iv_symbols->*[ c_name = x_class_name ]-c_object.
+          lo_cref       = cast cl_abap_classdescr( cl_abap_classdescr=>describe_by_object_ref( x_ref_obj ) ).
         endif.
 
-        data(lo_params) = lo_cref->methods[ name = to_upper( x_method_name ) ]-parameters.
-        x_tbl_parameter = cast #( x_tbl_callback->*[ 1 ]-c_ref ).
+        data(x_class_type) = cl_abap_classdescr=>get_class_name( x_ref_obj ).
+        data(lo_params)    = lo_cref->methods[ name = to_upper( x_method_name ) ]-parameters.
 
         loop at lo_params into data(x_class_params).
-          if x_class_params-parm_kind = cl_abap_objectdescr=>importing.
+          if x_class_params-parm_kind   = cl_abap_objectdescr=>importing.
             if x_class_params-type_kind = cl_abap_typedescr=>typekind_int.
               create data x_ref_data type i.
+              assign x_ref_data->* to <fs_data>.
             elseif x_class_params-type_kind = cl_abap_typedescr=>typekind_string.
               create data x_ref_data type string.
+              assign x_ref_data->* to <fs_data>.
+            elseif x_class_params-type_kind = cl_abap_typedescr=>typekind_oref.
+              create data x_ref_data type ref to data.
+              assign x_ref_data to <fs_data>.
             else.
               continue.
             endif.
 
-            if not line_exists(  x_tbl_parameter->*[ c_key = to_lower( x_class_params-name ) ] ).
+            data x_params_js type zstr_eezz_json.
+            clear x_params_js.
+
+            if x_params_js is initial.
+              if line_exists(  x_tbl_parameter->*[ c_key = to_lower( x_class_params-name ) ] ).
+                x_params_js = x_tbl_parameter->*[ c_key = to_lower( x_class_params-name ) ].
+              endif.
+            endif.
+
+            if x_params_js is initial.
+              if line_exists(  iv_parameter->*[ c_key = to_lower( x_class_params-name ) ] ).
+                x_params_js = iv_parameter->*[ c_key = to_lower( x_class_params-name ) ].
+              endif.
+            endif.
+
+            if x_params_js is initial.
               continue.
             endif.
 
-            assign x_ref_data->* to <fs_data>.
-            data(x_params_js)    = x_tbl_parameter->*[ c_key = to_lower( x_class_params-name ) ].
-            <fs_data>            = x_params_js-c_value.
+            split x_params_js-C_VALUE at '.' into data(x_ref_this) data(x_ref_value).
+
+            if x_ref_this eq 'this'.
+              <fs_data> = iv_parameter->*[ c_key = x_ref_value ]-c_ref.
+            else.
+              <fs_data> = x_params_js-c_value.
+            endif.
 
             x_dyn_param_wa-kind  = cl_abap_objectdescr=>exporting.
             x_dyn_param_wa-name  = x_class_params-name.
@@ -168,7 +201,7 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
             continue.
           endif.
 
-          if x_class_params-parm_kind = cl_abap_objectdescr=>returning.
+          if x_class_params-parm_kind   = cl_abap_objectdescr=>returning.
             if x_class_params-type_kind = cl_abap_typedescr=>typekind_oref.
               x_dyn_param_wa-kind       = cl_abap_objectdescr=>returning.
               x_dyn_param_wa-name       = x_class_params-name.
@@ -182,7 +215,10 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
         if x_method_name eq 'CONSTRUCTOR'.
           create object x_tbl_obj type (x_class_name) parameter-table x_dyn_param.
         else.
-          call method x_ref_obj->(x_method_name) parameter-table x_dyn_param.
+          data: x_cast_obj type ref to object.
+          create object x_cast_obj TYPE (x_class_type).
+          x_cast_obj ?= x_ref_obj.
+          call method   x_cast_obj->(x_method_name) parameter-table x_dyn_param.
         endif.
 
         if x_tbl_obj is bound.
@@ -388,25 +424,85 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
 
 
 * <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Static Public Method ZCL_EEZZ_JSON=>GEN_RESPONSE
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IT_UPDATE                      TYPE REF TO ZTTY_UPDATE
+* | [<-()] RV_JSON                        TYPE        STRING
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  method gen_response.
+    data: x_update   type zstr_update,
+          x_response type string,
+          x_tmp      type string.
+
+    data(x_result_stream) = new cl_abap_string_c_writer(  ).
+
+    sort it_update->* by c_prio.
+
+    x_result_stream->write( '{ "update":{' ).
+
+    loop at it_update->* into x_update.
+      if sy-tabix <> 1.
+        x_result_stream->write( |,| ).
+      endif.
+      x_result_stream->write( |"{ x_update-c_key }":"{ cl_http_utility=>escape_url( x_update-c_value ) }"| ).
+    endloop.
+    x_result_stream->write( '}}' ).
+    rv_json = x_result_stream->get_result_string( ).
+
+  endmethod.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
 * | Instance Public Method ZCL_EEZZ_JSON->GEN_ROW_EVENT
 * +-------------------------------------------------------------------------------------------------+
 * | [--->] IV_NAME                        TYPE        STRING
 * | [--->] IV_INDEX                       TYPE        INT4
+* | [--->] IV_DICTIONARY                  TYPE REF TO ZTTY_DICTIONARY(optional)
 * | [<-()] EV_RESULT                      TYPE        STRING
 * +--------------------------------------------------------------------------------------</SIGNATURE>
   method gen_row_event.
-    data(x_json_update) = me->get( 'update' ).
-    data(x_json_stream) = new cl_abap_string_c_writer(  ).
+    data x_attributes type ref to ztty_eezz_json.
+    data(x_comma)         = ||.
+    data(x_json_update)   = me->get( 'update' ).
+    data(x_json_callback) = me->get( 'callback' ).
+    data(x_json_stream)   = new cl_abap_string_c_writer(  ).
 
-    x_json_stream->write( |\{"callback":\{"{ iv_name }.do_select"  :\{"index":"{ iv_index }"\}\}| ).
-    x_json_stream->write( | ,"update"  :\{| ).
+    if x_json_callback is bound.
+      x_json_stream->write( |\{"callback":\{"{ x_json_callback->*[ 1 ]-c_key }":\{| ).
 
+      x_attributes = cast #( x_json_callback->*[ 1 ]-c_ref ).
+      if x_attributes is bound.
+        loop at x_attributes->* into data(xwa_attr).
+           x_json_stream->write( |{ x_comma }"{ xwa_attr-c_key }":"{ xwa_attr-c_value }"| ).
+           x_comma = ','.
+        endloop.
+      endif.
+
+      x_json_stream->write( |\}\}| ).
+      x_json_stream->write( | ,"update"  :\{| ).
+    else.
+      x_json_stream->write( |\{"callback":\{"{ iv_name }.do_select"  :\{"index":"{ iv_index }"\}\}| ).
+      x_json_stream->write( | ,"update"  :\{| ).
+    endif.
+
+    x_comma = ||.
     if x_json_update is bound.
       loop at x_json_update->* into data(xwa_update).
-        if sy-tabix > 1.
-          x_json_stream->write( ',' ).
-        endif.
-        x_json_stream->write( |"{ xwa_update-c_key }":"{ xwa_update-c_value }"| ).
+
+        try.
+          split xwa_update-c_key at '.' into table data(x_key_element).
+          if iv_dictionary is bound and x_key_element[ 1 ] eq 'this'.
+            data(x_this_update_key) = iv_dictionary->*[ c_key = x_key_element[ 2 ] ]-c_value.
+            " data(x_this_update_att) = x_key_element[ 3 ].
+            x_json_stream->write( |{ x_comma }"{ iv_name }.{ x_this_update_key }":"{ xwa_update-c_value }"| ).
+            x_comma = ','.
+            continue.
+          endif.
+        catch cx_sy_itab_line_not_found.
+        endtry.
+
+        x_json_stream->write( |{ x_comma }"{ xwa_update-c_key }":"{ xwa_update-c_value }"| ).
+        x_comma = ','.
       endloop.
     endif.
     x_json_stream->write( '}}' ).
@@ -418,29 +514,44 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
 * <SIGNATURE>---------------------------------------------------------------------------------------+
 * | Instance Public Method ZCL_EEZZ_JSON->GET
 * +-------------------------------------------------------------------------------------------------+
-* | [--->] IV_PATH                        TYPE        STRING
+* | [--->] IV_PATH                        TYPE        STRING(optional)
 * | [<-()] RT_OBJ                         TYPE REF TO ZTTY_EEZZ_JSON
 * +--------------------------------------------------------------------------------------</SIGNATURE>
   method get.
     data:
       x_tbl_parameter type ref to ztty_eezz_json,
-      x_str_call      type zstr_eezz_json.
+      x_ref_str       type zstr_eezz_json.
 
     data(x_ref_tbl) = m_tbl_json.
 
     clear rt_obj.
 
     try.
-        x_ref_tbl   = cast #( m_tbl_json->*[ 1 ]-c_ref ).
-        x_str_call  = x_ref_tbl->*[ c_key = iv_path ].
-
-        if x_str_call-c_ref is bound.
-          rt_obj      = cast #( x_str_call-c_ref ).
-        else.
-          rt_obj      = cast #( x_ref_tbl ).
+        if iv_path is initial.
+          rt_obj = cast #( x_ref_tbl->*[ 1 ]-c_ref ).
+          return.
         endif.
+
+        split iv_path at '/' into table data(x_tbl_path).
+        x_ref_tbl   = cast #( x_ref_tbl->*[ 1 ]-c_ref ).
+
+        if x_ref_tbl is not bound.
+          return.
+        endif.
+
+        loop at x_tbl_path into data(x_path).
+          x_ref_str = x_ref_tbl->*[ c_key = x_path ].
+
+          if x_ref_str-c_ref is bound.
+            x_ref_tbl = cast #( x_ref_str-c_ref ).
+          endif.
+        endloop.
+
       catch cx_sy_itab_line_not_found.
+        return.
     endtry.
+
+    rt_obj = cast #( x_ref_tbl ).
 
   endmethod.
 
@@ -516,7 +627,7 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
 * <SIGNATURE>---------------------------------------------------------------------------------------+
 * | Instance Public Method ZCL_EEZZ_JSON->GET_UPDATE
 * +-------------------------------------------------------------------------------------------------+
-* | [<-()] ET_EEZZ_JSON                   TYPE REF TO ZTTY_EEZZ_PARAMETER
+* | [<-()] ET_EEZZ_JSON                   TYPE REF TO ZTTY_EEZZ_JSON
 * +--------------------------------------------------------------------------------------</SIGNATURE>
   method get_update.
     "et_eezz_json = cast #( m_tbl_json->*[ c_key = 'update' ]->c_ref ).
@@ -549,7 +660,7 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
 * <SIGNATURE>---------------------------------------------------------------------------------------+
 * | Static Public Method ZCL_EEZZ_JSON=>SET_UPDATE
 * +-------------------------------------------------------------------------------------------------+
-* | [--->] IV_UPDATE                      TYPE        ZTTY_EEZZ_PARAMETER
+* | [--->] IV_UPDATE                      TYPE        ZTTY_EEZZ_JSON
 * | [<-()] EV_UPDATE                      TYPE        STRING
 * +--------------------------------------------------------------------------------------</SIGNATURE>
   method set_update.
