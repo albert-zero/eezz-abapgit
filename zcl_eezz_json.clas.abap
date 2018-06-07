@@ -142,7 +142,7 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
               endif.
             endif.
 
-            if x_params_js is initial.
+            if x_params_js is initial and iv_parameter is not initial.
               if line_exists(  iv_parameter->*[ c_key = to_lower( x_class_params-name ) ] ).
                 x_params_js = iv_parameter->*[ c_key = to_lower( x_class_params-name ) ].
               endif.
@@ -190,7 +190,9 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
         if x_tbl_obj is bound.
           x_ref_obj ?= x_tbl_obj.
         endif.
-      catch cx_root into data(x_cx_root).
+    catch cx_root into data(x_cx_root).
+        data(lo_txt) = x_cx_root->GET_TEXT( ).
+        return.
     endtry.
 
     rt_table ?= x_ref_obj.
@@ -198,7 +200,7 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
 
 
   method constructor.
-* for develop and maintenance output:
+*   for develop and maintenance output:
     data(c_out) = cl_demo_output=>new( )->begin_section( `PARSE_EEZZ_JSON` ).
     data(x_dbg) = abap_false.
     m_json      = iv_json.
@@ -211,9 +213,9 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
       replace all occurrences of '''' in m_json with '"'.
     endif.
 
-* Temporary structure and table
-* It would be possible to parse all in one pass
-* Choosing two pass makes things easier to develop
+*   Temporary structure and table
+*   It would be possible to parse all in one pass
+*   Choosing two pass makes things easier to develop
     data: begin of x_wa_node,
             c_type  type string,
             c_name  type string,
@@ -225,7 +227,7 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
     data(x_json)        = cl_abap_codepage=>convert_to( m_json ).
     data(x_json_reader) = cl_sxml_string_reader=>create( x_json ).
 
-* Standard parser to ship the json into a table structure
+*   Standard parser to ship the json into a table structure
     try.
         do.
           clear x_wa_node.
@@ -281,10 +283,10 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
         c_out->write_text( x_parse_error->get_text( ) ).
     endtry.
     c_out->write_data( x_tbl_nodes ).
-    c_out->next_section( `Generate JSON tree` ).
+    c_out->next_section( | Generate JSON tree | ).
 
-* From the temp table create a recursive structure
-* Define the root element and add elements
+*   From the temp table create a recursive structure
+*   Define the root element and add elements
     data(x_tbl_root)   = new ztty_eezz_json( ).
     data(x_wajs_param) = new zstr_eezz_json( c_ref = cast #( x_tbl_root ) ).
     data x_wajs_parent  type ref to zstr_eezz_json.
@@ -298,7 +300,7 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
     insert x_wajs_param into x_tbl_stack index 1.
     data(x_cursor) = 1.
 
-* Process the generated table. A fixed number prevents us from endless loops
+*   Process the generated table. A fixed number prevents us from endless loops
     do 100 times.
       try.
           x_wa_node = x_tbl_nodes[ x_cursor ].
@@ -391,7 +393,7 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
       if sy-tabix <> 1.
         x_result_stream->write( |,| ).
       endif.
-      x_result_stream->write( |"{ x_update-c_key }":"{ cl_http_utility=>escape_url( x_update-c_value ) }"| ).
+      x_result_stream->write( |"{ x_update-c_key }":"{ CL_ABAP_DYN_PRG=>escape_xss_url( x_update-c_value ) }"| ).
     endloop.
     x_result_stream->write( '}}' ).
     rv_json = x_result_stream->get_result_string( ).

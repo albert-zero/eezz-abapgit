@@ -15,7 +15,7 @@
      <APPLICATION_ID>Z_EEZZ_WS_PUSH_CHANNEL</APPLICATION_ID>
      <VERSION>A</VERSION>
      <LANG>E</LANG>
-     <DESCRIPTION>EEZZ WebSocket Push Channel</DESCRIPTION>
+     <DESCRIPTION>EEZZ Web Socket Push Channel</DESCRIPTION>
     </TEXT>
    </SAPC>
   </asx:values>

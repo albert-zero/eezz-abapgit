@@ -5,8 +5,8 @@
    <VSEOINTERF>
     <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
     <VERSION>1</VERSION>
-    <LANGU>D</LANGU>
-    <DESCRIPT>interface for eezz table class</DESCRIPT>
+    <LANGU>E</LANGU>
+    <DESCRIPT>EEZZ Table</DESCRIPT>
     <EXPOSURE>2</EXPOSURE>
     <STATE>1</STATE>
     <UNICODE>X</UNICODE>
@@ -14,33 +14,99 @@
    <DESCRIPTIONS>
     <SEOCOMPOTX>
      <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
-     <CMPNAME>CREATE_NODE</CMPNAME>
-     <LANGU>D</LANGU>
-     <DESCRIPT>Creates an IF_IXML_NODE tree for a given table</DESCRIPT>
+     <CMPNAME>DO_NAVIGATE</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Navigate in result set</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
+     <CMPNAME>DO_SELECT</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>select values from database</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
+     <CMPNAME>DO_SELECT_DATABASE</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Select new values from database</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
+     <CMPNAME>DO_SORT</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Initialize new sot</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
+     <CMPNAME>GET_COLUMN_NAMES</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Get the names of the columns</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
+     <CMPNAME>GET_ROW</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Get one row</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
+     <CMPNAME>GET_SELECTED_OBJ</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Returns the master and its detail view</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
+     <CMPNAME>HAS_CHANGED</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Check if filter settings have changed</DESCRIPT>
     </SEOCOMPOTX>
     <SEOCOMPOTX>
      <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
      <CMPNAME>MT_UPDATE</CMPNAME>
-     <LANGU>D</LANGU>
-     <DESCRIPT>Update response for eezz request</DESCRIPT>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Update response for eezz requests</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
+     <CMPNAME>M_OFFSET</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Offset in table</DESCRIPT>
     </SEOCOMPOTX>
     <SEOCOMPOTX>
      <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
      <CMPNAME>M_SELECTED</CMPNAME>
-     <LANGU>D</LANGU>
-     <DESCRIPT>Current selected entry</DESCRIPT>
+     <LANGU>E</LANGU>
+     <DESCRIPT>current selected row</DESCRIPT>
     </SEOCOMPOTX>
     <SEOCOMPOTX>
      <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
      <CMPNAME>M_TABLE_DDIC</CMPNAME>
-     <LANGU>D</LANGU>
+     <LANGU>E</LANGU>
      <DESCRIPT>database table name</DESCRIPT>
     </SEOCOMPOTX>
     <SEOCOMPOTX>
      <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
      <CMPNAME>M_TABLE_NAME</CMPNAME>
-     <LANGU>D</LANGU>
-     <DESCRIPT>Logical name of the table</DESCRIPT>
+     <LANGU>E</LANGU>
+     <DESCRIPT>logical name of the table</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
+     <CMPNAME>M_TOPDOWN</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>navigation direction</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
+     <CMPNAME>M_VISIBLE_BLOCK</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>number of items in block navigation</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
+     <CMPNAME>M_VISIBLE_ITEMS</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>number of items in scroll navigation</DESCRIPT>
     </SEOCOMPOTX>
    </DESCRIPTIONS>
   </asx:values>

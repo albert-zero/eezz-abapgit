@@ -328,13 +328,16 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
               endif.
 
               data(x_tr_attr)        = cast if_ixml_element( x_tr_new_node )->get_attribute_ns( 'data-eezz-attributes' ).
-              data(x_tr_json_attr)   = new zcl_eezz_json( x_tr_attr )->get( ).
 
-              loop at x_tr_json_attr->* into data(xwa_attr).
-                cast if_ixml_element( x_tr_new_node )->set_attribute_ns( name = xwa_attr-c_key  value = || ).
-                data(x_tr_node) = cast if_ixml_element( x_tr_new_node )->get_attribute_node_ns( xwa_attr-c_key ).
-                insert value #( c_node = x_tr_node c_filter = xwa_attr-c_value c_value = xwa_attr-c_key ) into table <fs_cw_templ>-c_repl->*.
-              endloop.
+              if strlen( x_tr_attr ) > 0.
+                data(x_tr_json_attr)   = new zcl_eezz_json( x_tr_attr )->get( ).
+
+                loop at x_tr_json_attr->* into data(xwa_attr).
+                  cast if_ixml_element( x_tr_new_node )->set_attribute_ns( name = xwa_attr-c_key  value = || ).
+                  data(x_tr_node) = cast if_ixml_element( x_tr_new_node )->get_attribute_node_ns( xwa_attr-c_key ).
+                  insert value #( c_node = x_tr_node c_filter = xwa_attr-c_value c_value = xwa_attr-c_key ) into table <fs_cw_templ>-c_repl->*.
+                endloop.
+              endif.
             catch cx_root.
           endtry.
         endif.

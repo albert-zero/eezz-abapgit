@@ -5,7 +5,7 @@
    <VSEOCLASS>
     <CLSNAME>ZCL_EEZZ_AGENT</CLSNAME>
     <VERSION>1</VERSION>
-    <LANGU>D</LANGU>
+    <LANGU>E</LANGU>
     <DESCRIPT>web socket hook for handling requests</DESCRIPT>
     <EXPOSURE>2</EXPOSURE>
     <STATE>1</STATE>

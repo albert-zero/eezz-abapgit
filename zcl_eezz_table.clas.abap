@@ -314,7 +314,7 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
 
 
   METHOD zif_eezz_table~get_row.
-    DATA ls_cell  TYPE zstr_cell.
+   DATA ls_cell  TYPE zstr_cell.
 
     DATA x_typedescr  TYPE REF TO cl_abap_tabledescr.
     DATA x_linedescr  TYPE REF TO cl_abap_structdescr.
@@ -326,8 +326,13 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
     FIELD-SYMBOLS <fs_line>  TYPE any.
     FIELD-SYMBOLS <fs_value> TYPE any.
 
+    if mt_table is not bound.
+      return. " should not appen.....
+    endif.
+
     ASSIGN mt_table->* TO <fs_table>.
     CLEAR  mt_row.
+
 
     x_typedescr   ?= cl_abap_tabledescr=>describe_by_data( <fs_table> ).
     x_linedescr   ?= x_typedescr->get_table_line_type( ).

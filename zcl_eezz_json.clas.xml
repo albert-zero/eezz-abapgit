@@ -5,7 +5,7 @@
    <VSEOCLASS>
     <CLSNAME>ZCL_EEZZ_JSON</CLSNAME>
     <VERSION>1</VERSION>
-    <LANGU>D</LANGU>
+    <LANGU>E</LANGU>
     <DESCRIPT>json parsing and dynamic execution of callback events</DESCRIPT>
     <EXPOSURE>2</EXPOSURE>
     <STATE>1</STATE>

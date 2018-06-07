@@ -2,20 +2,18 @@ interface ZIF_EEZZ_TABLE
   public .
 
 
-  data M_TABLE_DDIC type STRING .
-  data M_TABLE_NAME type STRING .
-  data M_SELECTED type I .
   data M_OFFSET type INT4 .
   data M_TOPDOWN type INT4 .
   data M_VISIBLE_BLOCK type INT4 .
   data M_VISIBLE_ITEMS type INT4 .
   data MT_UPDATE type ZTTY_UPDATE .
+  data M_TABLE_DDIC type STRING .
+  data M_TABLE_NAME type STRING .
+  data M_SELECTED type STRING .
 
-  methods CREATE_NODE
-    importing
-      !IV_SYMBOLS type ref to ZTTY_SYMBOLS
+  methods GET_UPDATE
     returning
-      value(IO_TABLE_NODE) type ref to IF_IXML_NODE .
+      value(RT_UPDATE) type ref to ZTTY_UPDATE .
   methods GET_SELECTED_OBJ
     importing
       !INDEX type INTEGER default -1
@@ -36,9 +34,6 @@ interface ZIF_EEZZ_TABLE
   methods GET_COLUMN_NAMES
     returning
       value(RT_COLUMN_NAMES) type ref to ZTTY_EEZZ_ROW .
-  methods GET_DICTIONARY
-    returning
-      value(RT_DICTIONARY) type ref to ZTTY_DICTIONARY .
   methods DO_NAVIGATE
     importing
       !WHERE type INT4
@@ -55,7 +50,12 @@ interface ZIF_EEZZ_TABLE
       !PATH type STRING optional
     returning
       value(RT_EEZZ_TABLE) type ref to ZIF_EEZZ_TABLE .
-  methods GET_UPDATE
+  methods GET_DICTIONARY
     returning
-      value(RT_UPDATE) type ref to ZTTY_UPDATE .
+      value(RT_DICTIONARY) type ref to ZTTY_DICTIONARY .
+  methods CREATE_NODE
+    importing
+      !IV_SYMBOLS type ref to ZTTY_SYMBOLS
+    returning
+      value(IO_TABLE_NODE) type ref to IF_IXML_NODE .
 endinterface.

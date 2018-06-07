@@ -4,6 +4,7 @@
   <asx:values>
    <DD40V>
     <TYPENAME>ZTTY_DICTIONARY</TYPENAME>
+    <DDLANGUAGE>E</DDLANGUAGE>
     <ROWTYPE>ZSTR_DICTIONARY</ROWTYPE>
     <ROWKIND>S</ROWKIND>
     <DATATYPE>STRU</DATATYPE>
@@ -11,6 +12,7 @@
     <KEYDEF>K</KEYDEF>
     <KEYKIND>U</KEYKIND>
     <KEYFDCOUNT>0001</KEYFDCOUNT>
+    <DDTEXT>hash table for string-key to string-value</DDTEXT>
    </DD40V>
    <DD42V>
     <DD42V>

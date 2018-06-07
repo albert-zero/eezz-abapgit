@@ -64,27 +64,19 @@ CLASS ZCL_APC_WSP_EXT_Z_EEZZ_WS_PUS2 IMPLEMENTATION.
 
   METHOD if_apc_wsp_extension~on_start.
     TRY.
-* send the message on WebSocket connection
+*       send the message on WebSocket connection
         DATA(lo_message) = i_message_manager->create_message( ).
 
         "lo_message->set_text( |{ sy-mandt }/{ sy-uname }: ON_START has been successfully executed !| ).
         "i_message_manager->send( lo_message ).
 
         DATA(lo_binding) = i_context->get_binding_manager( ).
-*        lo_binding->bind_amc_message_consumer(
-*          i_application_id = 'Z_EEZZ_WS_MSG_CHANNEL'
-*          i_channel_id      = '/eezz' ).
-*
-*        lo_binding = i_context->get_binding_manager( ).
-*        lo_binding->bind_amc_message_consumer(
-*                     i_application_id = '/ISDFPS/LM'
-*                     i_channel_id     = '/ise' ).
-         data(x_conn_id) = i_context->GET_CONNECTION_ID( ).
-         cl_amc_channel_manager=>create_message_consumer(
-                   i_application_id = '/ISDFPS/LM'
-                   i_channel_id     = '/ise'
+        data(x_conn_id) = i_context->GET_CONNECTION_ID( ).
+        cl_amc_channel_manager=>create_message_consumer(
+                   i_application_id = 'Z_EEZZ_WS_MSG_CHANNEL'
+                   i_channel_id     = '/eezz' ).
 *                   I_CHANNEL_EXTENSION_ID =
-            )->start_message_delivery( i_receiver = me ).
+*            )->start_message_delivery( i_receiver = me ).
 *
 *        lo_binding->bind_amc_message_consumer(
 *                   i_application_id = '/ISDFPS/LM'
@@ -97,6 +89,9 @@ CLASS ZCL_APC_WSP_EXT_Z_EEZZ_WS_PUS2 IMPLEMENTATION.
 
       CATCH cx_apc_error INTO DATA(lx_apc_error).
         MESSAGE lx_apc_error->get_text( ) TYPE 'E'.
+      CATCH cx_root INTO data(lx_root).
+        data(xl_text) = lx_root->get_text( ).
+        MESSAGE lx_root->get_text( ) TYPE 'E'.
     ENDTRY.
   ENDMETHOD.
 ENDCLASS.
