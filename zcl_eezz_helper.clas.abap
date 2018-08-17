@@ -9,6 +9,7 @@ public section.
     importing
       !IT_ROWS type ref to ZTTY_EEZZ_ROW
       !IV_LINE type ANY
+      !IV_FIELD type STRING optional
     returning
       value(RV_HASH) type STRING .
   class-methods CREATE_APC_URL
@@ -65,44 +66,50 @@ CLASS ZCL_EEZZ_HELPER IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD create_hash_for_table_key.
+  method create_hash_for_table_key.
 
-    DATA: x_digest          TYPE REF TO cl_abap_message_digest,
-          x_converter       TYPE REF TO cl_abap_conv_out_ce,
-          x_data_as_xstring TYPE xstring,
-          x_genkey          TYPE string.
+    data: x_digest          type ref to cl_abap_message_digest,
+          x_converter       type ref to cl_abap_conv_out_ce,
+          x_data_as_xstring type xstring,
+          x_genkey          type string.
 
-    LOOP AT it_rows->* INTO DATA(x_wa_col) WHERE c_keyflag EQ abap_true.
-      ASSIGN COMPONENT x_wa_col-c_field_name OF STRUCTURE iv_line TO FIELD-SYMBOL(<fs_value>).
-      IF sy-subrc EQ 0.
-        CONCATENATE x_genkey <fs_value> INTO x_genkey.
-      ENDIF.
-    ENDLOOP.
+    loop at it_rows->* into data(x_wa_col) where c_keyflag eq abap_true.
+      assign component x_wa_col-c_field_name of structure iv_line to field-symbol(<fs_value>).
 
-    TRY.
+      if sy-subrc eq 0.
+        concatenate x_genkey <fs_value> into x_genkey.
+      endif.
+    endloop.
+
+    if iv_field is not initial.
+      concatenate x_genkey iv_field into x_genkey.
+    endif.
+
+    try.
         x_digest = cl_abap_message_digest=>get_instance( 'sha1' ).
 
         "update digest with input
         x_converter = cl_abap_conv_out_ce=>create( ).
         x_converter->convert(
-          EXPORTING
+          exporting
             data   = x_genkey
-          IMPORTING
+          importing
             buffer = x_data_as_xstring
         ).
         x_digest->update( if_data = x_data_as_xstring ).
+
 
         "finalise digest
         x_digest->digest( ).
         rv_hash = x_digest->to_base64( ).
 
-      CATCH cx_abap_message_digest.
-        CLEAR rv_hash.
-      CATCH cx_sy_conversion_codepage
+      catch cx_abap_message_digest.
+        clear rv_hash.
+      catch cx_sy_conversion_codepage
             cx_parameter_invalid_type.
-        CLEAR rv_hash.
-    ENDTRY.
+        clear rv_hash.
+    endtry.
 
 
-  ENDMETHOD.
+  endmethod.
 ENDCLASS.

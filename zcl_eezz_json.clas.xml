@@ -14,6 +14,44 @@
     <FIXPT>X</FIXPT>
     <UNICODE>X</UNICODE>
    </VSEOCLASS>
+   <DESCRIPTIONS>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_EEZZ_JSON</CLSNAME>
+     <CMPNAME>DUMP</CMPNAME>
+     <LANGU>D</LANGU>
+     <DESCRIPT>Dumps the json structure to string</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_EEZZ_JSON</CLSNAME>
+     <CMPNAME>DUMP</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Dumps the json structure to string</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_EEZZ_JSON</CLSNAME>
+     <CMPNAME>JOIN</CMPNAME>
+     <LANGU>D</LANGU>
+     <DESCRIPT>Join two json objects using the given key</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_EEZZ_JSON</CLSNAME>
+     <CMPNAME>JOIN</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Join two json objects using the given key</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_EEZZ_JSON</CLSNAME>
+     <CMPNAME>M_WRITER</CMPNAME>
+     <LANGU>D</LANGU>
+     <DESCRIPT>Binärer Stringschreibstrom</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_EEZZ_JSON</CLSNAME>
+     <CMPNAME>WALK</CMPNAME>
+     <LANGU>D</LANGU>
+     <DESCRIPT>recursive walk to generate a dump</DESCRIPT>
+    </SEOCOMPOTX>
+   </DESCRIPTIONS>
   </asx:values>
  </asx:abap>
 </abapGit>

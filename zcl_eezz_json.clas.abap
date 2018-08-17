@@ -5,6 +5,18 @@ class ZCL_EEZZ_JSON definition
 
 public section.
 
+  methods DUMP
+    importing
+      !IV_PATH type STRING optional
+    returning
+      value(RV_JSN_WRT) type ref to CL_ABAP_STRING_C_WRITER .
+  methods JOIN
+    importing
+      !IV_PATH type STRING optional
+      !IT_JSON type ref to ZTTY_EEZZ_JSON optional
+      !IV_KEY type STRING
+      !IV_VALUE type STRING optional
+      !IV_TYPE type STRING optional .
   class-methods GEN_RESPONSE
     importing
       !IT_UPDATE type ref to ZTTY_UPDATE
@@ -28,8 +40,9 @@ public section.
       value(RT_RANGE) type ref to ZTTY_EEZZ_ROW .
   methods CONSTRUCTOR
     importing
-      !IV_JSON type STRING
-      !IV_CONV_QMARK type BOOLEAN default 'X' .
+      !IV_JSON type STRING default '{}'
+      !IV_CONV_QMARK type BOOLEAN default 'X'
+      !IT_JSON type ref to ZTTY_EEZZ_JSON optional .
   methods GET_UPDATE
     returning
       value(ET_EEZZ_JSON) type ref to ZTTY_EEZZ_JSON .
@@ -58,10 +71,16 @@ public section.
     returning
       value(EV_RESULT) type STRING .
   protected section.
-  private section.
+private section.
 
-    data m_json type string .
-    data m_tbl_json type ref to ztty_eezz_json .
+  data M_JSON type STRING .
+  data M_TBL_JSON type ref to ZTTY_EEZZ_JSON .
+  data M_WRITER type ref to CL_ABAP_STRING_C_WRITER .
+
+  class-methods WALK
+    importing
+      !IV_WRITER type ref to CL_ABAP_STRING_C_WRITER
+      !IT_JSON type ref to ZTTY_EEZZ_JSON .
 ENDCLASS.
 
 
@@ -204,6 +223,12 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
     data(c_out) = cl_demo_output=>new( )->begin_section( `PARSE_EEZZ_JSON` ).
     data(x_dbg) = abap_false.
     m_json      = iv_json.
+
+    if it_json is bound.
+      m_tbl_json = new ztty_eezz_json( ).
+      append value #( c_ref = cast #( it_json ) ) to m_tbl_json->*.
+      return.
+    endif.
 
     if strlen( m_json ) = 0.
       return.
@@ -371,6 +396,15 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
   endmethod.
 
 
+  method DUMP.
+    data(x_writer) = new cl_abap_string_c_writer(  ).
+
+    me->walk( iv_writer = x_writer it_json = me->get( iv_path = iv_path ) ).
+    rv_jsn_wrt = x_writer.
+
+  endmethod.
+
+
   method gen_header_event.
     ev_update =
        '{"callback":{"' && iv_name && '.do_sort":{"index":' && |"{ iv_index }"| && '}},' &&
@@ -395,7 +429,8 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
       endif.
       x_result_stream->write( |"{ x_update-c_key }":"{ CL_ABAP_DYN_PRG=>escape_xss_url( x_update-c_value ) }"| ).
     endloop.
-    x_result_stream->write( '}}' ).
+    x_result_stream->write( '}' ).
+    x_result_stream->write( '}' ).
     rv_json = x_result_stream->get_result_string( ).
 
   endmethod.
@@ -475,6 +510,10 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
         endif.
 
         loop at x_tbl_path into data(x_path).
+          if x_path is initial.
+            continue.
+          endif.
+
           x_ref_str = x_ref_tbl->*[ c_key = x_path ].
 
           if x_ref_str-c_ref is bound.
@@ -575,6 +614,34 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
   endmethod.
 
 
+  method JOIN.
+    data x_ref_json   type ref to data.
+    data x_value      type string.
+    data x_type       type string.
+    data x_wajs_param type ref to zstr_eezz_json.
+
+    " Get a referenece to the json table
+    data(x_ref_tbl)    = get( iv_path = iv_path ).
+
+    if x_ref_tbl is not bound.
+      return.
+    endif.
+
+    if it_json is bound.
+      if iv_type is initial.
+        x_wajs_param = new zstr_eezz_json( c_key = iv_key  c_type = |object|  c_ref = it_json ).
+      else.
+        x_wajs_param = new zstr_eezz_json( c_key = iv_key  c_type = iv_type  c_ref = it_json ).
+      endif.
+      append x_wajs_param->* to x_ref_tbl->*.
+    elseif iv_value is not initial.
+      x_wajs_param = new zstr_eezz_json( c_key = iv_key  c_type = |str| c_value = iv_value ).
+      append x_wajs_param->* to x_ref_tbl->*.
+    endif.
+
+  endmethod.
+
+
   method set_update.
     data x_json_writer type ref to if_sxml_writer.
     x_json_writer ?= cl_sxml_string_writer=>create( type = if_sxml=>co_xt_json ).
@@ -596,5 +663,54 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
 
 
     ev_update = cast cl_sxml_string_writer( x_json_writer )->get_output( ).
+  endmethod.
+
+
+  method WALK.
+    data: xsep type string value ''.
+    data: xarr type ref to ztty_eezz_json.
+
+    if it_json is not bound.
+      iv_writer->write( '{}' ).
+      return.
+    endif.
+
+    iv_writer->write('{').
+
+    loop at it_json->* into data(xl_json).
+      if xl_json-c_key is initial.
+        continue.
+      endif.
+
+      case xl_json-c_type.
+        when 'str'.
+          iv_writer->write( | { xsep } "{ xl_json-c_key }":"{ xl_json-c_value }" | ).
+          xsep = ','.
+        when 'array'.
+          data xt_arr type ref to ztty_eezz_json.
+          xt_arr  = cast #( xl_json-c_ref ).
+
+          iv_writer->write( | { xsep } "{ xl_json-c_key }":[ | ).
+          xsep = ''.
+
+          loop at xt_arr->* into data(xl_arr).
+            iv_writer->write( | { xsep } "{ xl_json-c_value }" | ).
+            xsep = ','.
+          endloop.
+
+          iv_writer->write( ']' ).
+          xsep = ','.
+        when 'event'.
+          iv_writer->write( | { xsep } "event": | ).
+          walk( iv_writer = iv_writer it_json = cast #( xl_json-c_ref ) ).
+        when others.
+          iv_writer->write( | { xsep } "{ xl_json-c_key }": | ).
+          walk( iv_writer = iv_writer it_json = cast #( xl_json-c_ref ) ).
+        endcase.
+
+    endloop.
+
+    iv_writer->write('}').
+
   endmethod.
 ENDCLASS.

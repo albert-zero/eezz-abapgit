@@ -64,13 +64,13 @@ ENDCLASS.
 CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
 
 
-  METHOD constructor.
-    DATA:
-      x_wa_column   TYPE zstr_cell,
-      x_typedescr   TYPE REF TO cl_abap_typedescr,
-      x_structdescr TYPE REF TO cl_abap_structdescr,
-      x_tabledescr  TYPE REF TO cl_abap_tabledescr,
-      x_table_comps TYPE cl_abap_structdescr=>component_table.
+  method constructor.
+    data:
+      x_wa_column   type zstr_cell,
+      x_typedescr   type ref to cl_abap_typedescr,
+      x_structdescr type ref to cl_abap_structdescr,
+      x_tabledescr  type ref to cl_abap_tabledescr,
+      x_table_comps type cl_abap_structdescr=>component_table.
 
     zif_eezz_table~m_visible_items = 10.
     zif_eezz_table~m_visible_block = 10.
@@ -78,7 +78,7 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
     zif_eezz_table~m_topdown       =  1.
     m_resort                       =  0.
 
-    mt_dictionary = VALUE ztty_dictionary(
+    mt_dictionary = value ztty_dictionary(
       ( c_key = 'table_nav_type' c_value = 'block' )
       ( c_key = 'table_pos'      c_value =  '0' )
       ( c_key = 'table_top'      c_value =  '1' )
@@ -88,51 +88,52 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
       ( c_key = 'table_current'  c_value =  '0' )
       ( c_key = 'innerHTML'      c_value = 'innerHTML')
       ( c_key = 'table_path'     c_value =  'id000000' )
-       ).
+      ( c_key = 'table_items'    c_value =  '20' )
+    ).
 
-    TRY.
-        IF iv_table IS NOT INITIAL.
+    try.
+        if iv_table is not initial.
           " work with existing table
           mt_table       = iv_table.
           x_tabledescr  ?= cl_abap_typedescr=>describe_by_data_ref( iv_table ).
           x_structdescr ?= x_tabledescr->get_table_line_type( ).
           mt_components  = x_structdescr->get_components( ).
-        ELSEIF table_name IS NOT INITIAL.
+        elseif table_name is not initial.
           " try to find DDIC table
           m_table_ddic   = table_name.
           x_structdescr ?= cl_abap_typedescr=>describe_by_name( p_name = m_table_ddic ).
           mt_components  = x_structdescr->get_components( ).
           x_tabledescr   = cl_abap_tabledescr=>create( x_structdescr ).
 
-          CREATE DATA mt_table TYPE HANDLE x_tabledescr.
-        ENDIF.
-      CATCH cx_root.
-        RETURN.
-    ENDTRY.
+          create data mt_table type handle x_tabledescr.
+        endif.
+      catch cx_root.
+        return.
+    endtry.
 
-    DATA lt_table_fields TYPE TABLE OF dfies.
-    DATA lt_table_ddic   TYPE ddobjname.
+    data lt_table_fields type table of dfies.
+    data lt_table_ddic   type ddobjname.
 
-    IF strlen( m_table_ddic ) > 0.
+    if strlen( m_table_ddic ) > 0.
       lt_table_ddic = m_table_ddic.
-      CALL FUNCTION 'DDIF_FIELDINFO_GET' EXPORTING tabname = lt_table_ddic TABLES dfies_tab = lt_table_fields.
-    ENDIF.
+      call function 'DDIF_FIELDINFO_GET' exporting tabname = lt_table_ddic tables dfies_tab = lt_table_fields.
+    endif.
 
-    LOOP AT mt_components INTO DATA(wac).
+    loop at mt_components into data(wac).
       x_wa_column-c_field_name = wac-name.
       x_wa_column-c_sort       = 0.
       x_wa_column-c_value      = wac-name.
       x_wa_column-c_position   = sy-tabix.
-      IF line_exists( lt_table_fields[ fieldname = wac-name ] ).
+      if line_exists( lt_table_fields[ fieldname = wac-name ] ).
         x_wa_column-c_value = lt_table_fields[ fieldname = wac-name ]-fieldtext.
         x_wa_column-c_outputlen = lt_table_fields[ fieldname = wac-name ]-outputlen.
         x_wa_column-c_keyflag = lt_table_fields[ fieldname = wac-name ]-keyflag.
-      ENDIF.
+      endif.
 
-      APPEND x_wa_column TO mt_column_names.
-    ENDLOOP.
+      append x_wa_column to mt_column_names.
+    endloop.
 
-  ENDMETHOD.
+  endmethod.
 
 
   method ZIF_EEZZ_TABLE~CREATE_NODE.
@@ -234,17 +235,29 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
       endif.
     endloop.
 
+    data x_order_def type string.
     x_order_str = | ORDER BY |.
+
     loop at mt_column_names into xwa_column.
-      if xwa_column-c_sort =  1.
+       x_order_def = |{ x_order_str } { xwa_column-c_field_name } { x_asc }|.
+       if not xwa_column-c_field_name cs |MANDT|.
+         exit.
+       endif.
+    endloop.
+
+    loop at mt_column_names into xwa_column.
+      if     xwa_column-c_sort =  1.
         x_sqlstm_stream->write( |{ x_order_str } { xwa_column-c_field_name } { x_asc }| ).
         x_order_str = ','.
-      elseif
-         xwa_column-c_sort = -1.
+        x_order_def = ''.
+      elseif xwa_column-c_sort = -1.
         x_sqlstm_stream->write( |{ x_order_str } { xwa_column-c_field_name } { x_des }| ).
         x_order_str = ','.
+        x_order_def = ''.
       endif.
     endloop.
+
+    x_sqlstm_stream->write( x_order_def ).
 
     if x_skip_limit eq space.
       x_sqlstm_stream->write( | limit ? offset ? | ).
@@ -372,10 +385,12 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
     DATA: x_genkey TYPE string.
     GET REFERENCE OF mt_column_names INTO DATA(x_ref_row).
 
-* Create hash value for concatenate table key
-    x_genkey = zcl_eezz_helper=>create_hash_for_table_key( it_rows = x_ref_row iv_line = <fs_line> ).
 
     LOOP AT mt_column_names INTO DATA(x_wa_col).
+      data xField type string.
+      xField   = x_wa_col-c_field_name.
+      x_genkey = zcl_eezz_helper=>create_hash_for_table_key( it_rows = x_ref_row iv_line = <fs_line> iv_field = xField ).
+
       ASSIGN COMPONENT x_wa_col-c_field_name OF STRUCTURE <fs_line> TO <fs_value>.
       IF sy-subrc EQ 0.
         ls_cell-c_value      = <fs_value>.
@@ -394,6 +409,9 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
+    x_genkey = zcl_eezz_helper=>create_hash_for_table_key( it_rows = x_ref_row iv_line = <fs_line> ).
+    append value #( c_field_name = '_eezz_row_cell_' c_genkey = x_genkey ) to mt_row.
+
     GET REFERENCE OF mt_row INTO rt_row.
   ENDMETHOD.
 
@@ -403,10 +421,11 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
       m_visible_block = visible_block.
       m_visible_items = visible_items.
       m_table_name    = table_name.
-
       rt_eezz_table   = me.
+      modify table me->mt_dictionary from value #( c_key = 'table_items' c_value = visible_items ).
     endif.
-  endmethod.
+
+endmethod.
 
 
   METHOD zif_eezz_table~get_update.
