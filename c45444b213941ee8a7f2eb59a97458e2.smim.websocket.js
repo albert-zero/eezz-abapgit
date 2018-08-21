@@ -170,9 +170,9 @@ function eezzConnect() {
         var aParser   = document.createElement('a');
         aParser.href  = document.URL;
         var aJson     = {"path": aParser.pathname, "args": eezzArguments};
-        var markup    = document.documentElement.innerHTML;
-        var aBodyPos  = markup.indexOf("<body");
-        var aJson     = {"path": aParser.pathname, "args": eezzArguments, "document": str.substr(aBodyPos)}; 
+        var aDocStr   = document.documentElement.innerHTML;
+        var aBodyPos  = aDocStr.indexOf("<body");
+        var aJson     = {"path": aParser.pathname, "args": eezzArguments, "document": aDocStr.substr(aBodyPos)}; 
         
         eezzWebSocket.send(JSON.stringify(aJson));
     }

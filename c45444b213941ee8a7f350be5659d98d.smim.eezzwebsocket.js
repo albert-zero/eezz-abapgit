@@ -16,6 +16,7 @@ document.onload = eezzConnect();
 /* ------------------------------------------------------------------------------- */
 var eezzAgent = { 
     // Evaluates the elements for the callback functions    
+	// --------------------------------------------------------------------------- 
     range : function ( rangeOperator, xElements ) {
         var xList  = [];
         var xMatch = null;
@@ -52,42 +53,63 @@ var eezzAgent = {
     },
     
     // Script function to call user layout and animation
-    script: function( aTargetName, aJsonStr ) {
-        var xJsonObj  = JSON.parse( aJsonStr );
+	// --------------------------------------------------------------------------- 
+    script: function( aJsonArg ) {
         var xContext  = null;
         var xTable    = null;
         var xElements = null;
         var xTblBody  = null;
         var xKey;
         
-        // Defined methods could be specified with range. The range is added to the argument list
-        // The context is evaluated as the first parent element with a display attribute        
-        if ( aTargetName ) {
-        	xElements  = document.getElementsByName( aTargetName );
-            if (xElements.length > 0) {
-            	xTable    = xElements[0];
-            	xContext  = xElements[0];
-            	xElements = xTable.getElementsByTagName( "TBODY" );
-            }
-            
-            if (xElements.length > 0) {
-            	xContext = xElements[0];
-            }
+        // Find the target and setup the drawing context
+        if (aJsonArg.context.tagName == 'TABLE') {
+        	xTable   = aJsonArg.context;
+        	xTblBody = xTable.getElementsByTagName('TBODY'); 
+        	aJsonArg['current'] = {
+            	'header'  : xTable.getElementsByTagName('THEAD'),
+        	    'footer'  : xTable.getElementsByTagName('TFOOT'),
+        	    'context' : xTable.getElementsByTagName('TBODY'),
+        	};
+        	
+        	xTable   = document.createElement('table');
+        	xTable.innerHTML = aJsonArg.innerHTML;	
+        	xTblBody = xTable.getElementsByTagName('TBODY');        	
+        	aJsonArg['updnew'] = { 
+                'header'  : xTable.getElementsByTagName('THEAD'),
+        	    'footer'  : xTable.getElementsByTagName('TFOOT'),
+            	'context' : xTable.getElementsByTagName('TBODY'),
+            };
+        	
+        	if (aJsonArg.current.context.length == 0 ||
+        		aJsonArg.updnew.context.length  == 0) {
+        		return;
+        	}
+        	aJsonArg.current.context  = aJsonArg.current.context[0];
+        	aJsonArg.current.elements = aJsonArg.current.context.getElementsByTagName('TD');
+        	
+        	aJsonArg.updnew.context   = aJsonArg.updnew.context[0];
+        	aJsonArg.updnew.filter    = aJsonArg.updnew.context.getElementsByTagName('TD');
+        	aJsonArg.updnew.elements  = aJsonArg.updnew.filter;
+        	
+        	aJsonArg['update'] = (         			
+    			function(aJsonContext) {    				
+    				return function() {
+    					aJsonContext.current.context.replaceWith(aJsonContext.updnew.context);    						
 
-            while (xContext && xContext.style.position == "" && xContext.tagName != "BODY") {
-                xContext = xContext.parentElement;
-            }
-            
-            if (xTable) {
-                xElements = xTable.getElementsByTagName("TD");
-            }
+    					if (aJsonContext.current.header.length  > 0 && aJsonContext.updnew.header.length  > 0) {
+        					aJsonContext.current.header[0].replaceWidth(aJsonContext.updnew.header[0]);
+    					}
+        				if (aJsonContext.current.footer.length  > 0 && aJsonContext.updnew.footer.length  > 0) {
+        					aJsonContext.current.footer[0].replaceWith(aJsonContext.updnew.footer[0]);
+        				}
+    					aJsonContext.current.elements.length = 0;
+    				}
+    			} 
+        	) (aJsonArg);
         }
         
-        if (xContext == null || xElements == null) {
-            return;
-        }
-        
-        for (xKey in xJsonObj) {
+        // Find the scripting modules
+        for (xKey in aJsonArg.script) {
         	var xPos = xKey.search("\\[");
         	if (xPos < 0) {
         		continue;
@@ -95,19 +117,15 @@ var eezzAgent = {
         	
         	var xCommand  = xKey.substr(0, xPos);
         	var xCmdRange = xKey.substr(xPos);
-            var xCmdArgs  = xJsonObj[ xKey ];
+            var xCmdArgs  = aJsonArg.script[ xKey ];
             	
             // evaluate range
-            var xElemList = this.range( xCmdRange, xElements );
-            var xJsonArgs = xJsonObj[xKey];
-            
-            xJsonArgs["name"]     = aTargetName;
-            xJsonArgs["table"]    = xTable;
-            xJsonArgs["context"]  = xContext;
-            xJsonArgs["elements"] = xElemList;
-
-            if (xCommand == "eezzAgent.circle") {
-                this.circle( xJsonArgs );
+            // aJsonArg.updnew.elements = this.range( xCmdRange, aJsonArg.updnew.filter );
+                        
+            if (xCommand == "eezzAgent.animated_circle") {
+            	var aGenerator = eezzAgent.animated_circle( aJsonArg, xCmdArgs );
+            	eezzAgent.runAnimation( new Date().getTime(), aGenerator, xCmdArgs );
+                // this.circle( xJsonArgs );
             }
             else if (xCommand == "eezzAgent.move") {
                 // Move elements
@@ -115,8 +133,8 @@ var eezzAgent = {
             else {
                 try {
                 	// var xxobj = eval("( myOwn.circle )");
-                    var xxobj     = window["myOwn"];
-                    xxobj.circle( xJsonArgs );
+                    // var xxobj     = window["myOwn"];
+                   //  xxobj.circle( xJsonArgs );
                } catch (e) {
                    alert(e.message);
                }
@@ -124,69 +142,182 @@ var eezzAgent = {
         }
     },
     
-    // layout function to put all elements on a circle
-    circle: function( xJsonArgs ) {
-    	var xStyle;            
-    	var xWidth  = parseInt( xJsonArgs.context.style.width  );
-    	var xHeight = parseInt( xJsonArgs.context.style.height );
+	// --------------------------------------------------------------------------- 
+    // Run animation
+    // The yield returns the timeout for the next call
+    // If the yield is a negative number, the method would request the animation
+    // frame.
+	// --------------------------------------------------------------------------- 
+    runAnimation: function( timestamp, aGenerator, xCmdArgs ) {
+    	var xResult = aGenerator.next();
+
+    	if (!xResult.done) {
+    		var xTimer = parseInt(xResult.value);
+    		if (isNaN(xTimer)) {
+    			return;
+    		}
+    		
+    		if (xTimer >= 0) {
+    			window.setTimeout( function(){ eezzAgent.runAnimation(timestamp, aGenerator, xCmdArgs); }, xTimer );
+    		}
+    		else  {
+    			xCmdArgs.timestamp = timestamp;
+    			requestAnimationFrame( function(timestamp){ runAnimation(timestamp, aGenerator, xCmdArgs); } );
+    		}
+    	}
+    },
+    
+	// --------------------------------------------------------------------------- 
+	// --------------------------------------------------------------------------- 
+    getSize: function( aElement ) {
+    	var xWidth  = parseInt( aElement.style.width  );
+    	var xHeight = parseInt( aElement.style.height );
+		var xStyle  = getComputedStyle( aElement );
     	
     	if (isNaN(xWidth)) {
-    		xStyle  = getComputedStyle( xJsonArgs.context );
-    	    xWidth  = parseInt( xStyle.getPropertyValue("width") );
-            xHeight = parseInt( xStyle.getPropertyValue("height") );
-    	}
-    	
-    	if (xJsonArgs.elements.length == 0) {
-    		return;
-    	}
-    	
-        var i;
-    	var xdPhi   = 2 * Math.PI / xJsonArgs.elements.length;
-        var xCx     = xWidth  / 2.0;
-        var xCy     = xHeight / 2.0;
-        var xMargin = 10;
+    	    xWidth  = parseInt( xStyle.getPropertyValue("width") );    		
+    	}    	
 
-        xWidth  = 0;
-        xHeight = 0;
-        for (i = 0; i < xJsonArgs.elements.length; i++) {
-        	var xStyleWidth;
-        	var xStyleHeight;
+    	if (isNaN(xHeight)) {
+    	    xWidth  = parseInt( xStyle.getPropertyValue("height") );    		
+    	}
+    	return {'width':xWidth, 'height': xHeight};
+    },
+    
+    // --------------------------------------------------------------------------- 
+    // --------------------------------------------------------------------------- 
+    getMaxSize: function( aElemList ) {
+    	var i;
+    	var xWidth  = 40;
+    	var xHeigth = 40;
+    	var xResult;
+    	
+    	for (i = 0; i < aElemList.length; i++) {
+    		xResult = parseInt( aElemList[i].style.width );
+        	if (!isNaN(xResult)) { 
+        		xWidth = Math.max( xResult, xWidth );
+        	}
         	
-        	xStyleWidth  = parseInt( xJsonArgs.elements[i].style.width );                	
-            xStyleHeight = parseInt( xJsonArgs.elements[i].style.height );
-            if (isNaN(xStyleWidth) || isNaN(xStyleHeight)) {
-            	continue;
-            }                    
-            xWidth  = Math.max( xWidth,  parseInt( xStyleWidth  ));
-            xHeight = Math.max( xHeight, parseInt( xStyleHeight ));
-        }
+        	xResult = parseInt( aElemList[i].style.height );
+        	if (!isNaN(xResult)) { 
+        		xHeight = Math.max( xResult,  xHeigth );
+        	}
+    	}
+    	return {'width':xWidth, 'height': xHeigth};
+    },
 
-        var xRx =  xCx - xWidth  / 2.0;
-        var xRy =  xCy - xHeight / 2.0;
+    // --------------------------------------------------------------------------- 
+    // --------------------------------------------------------------------------- 
+	getGeometry: function( xCmdArgs, aContext, aElements ) {
+    	if (aElements.length == 0) {
+    		return {};
+    	}
+        var xViewport = this.getSize( aContext );
+        var xElemSize = this.getMaxSize( aElements );
         
-        for (i = 0; i < xJsonArgs.elements.length; i++) {                	
-        	xJsonArgs.elements[i].style.position = "absolute";                	
-            var posx = Math.floor( xCx + xRx * Math.cos(i * xdPhi) - xWidth /2.0 );
-            var posy = Math.floor( xCy + xRy * Math.sin(i * xdPhi) - xHeight/2.0 );
+		var xGeometry = {
+    		viewport: xViewport,
+    		element : xElemSize,
+    	    deltaPhi: 2 * Math.PI / aElements.length,
+    		center  : { 
+    			x: xViewport.width / 2.0, 
+    			y: xViewport.height/ 2.0 
+    		},
+    		radius  : { 
+    			x: xViewport.width / 2.0 - xElemSize.width / 2.0,
+    			y: xViewport.height/ 2.0 - xElemSize.height/ 2.0
+    		},
+    		offset  : {
+    			x: - xElemSize.width / 2.0,
+    			y: - xElemSize.height/ 2.0    			
+    		}
+		}
+		return xGeometry;
+    },
+    
+    // --------------------------------------------------------------------------- 
+    // layout function to put all elements on a circle
+    // --------------------------------------------------------------------------- 
+    circle: function* ( xJsonArgs, xCmdArgs ) {
+        var i, j, k;
 
-            xJsonArgs.elements[i].style.left = posx + "px";
-            xJsonArgs.elements[i].style.top  = posy + "px";
-        }    
+        xJsonArgs.update();
+		var xElements = xJsonArgs.updnew.elements;
+		if (xElements.length > 0) {
+        	var xGeometry = this.getGeometry(xCmdArgs, xJsonArgs.updnew.context, xElements);
+        	for (i = 0; i < xElements.length; i++) {
+        		for (j = xElements.length - i - 1, k = 0; j < xElements.length; j++, k++) {
+        			xElements[j].style.left = ( xGeometry.center.x + xGeometry.radius.x * Math.cos(k * xGeometry.deltaPhi) + xGeometry.offset.x ) + "px";
+        			xElements[j].style.top  = ( xGeometry.center.y + xGeometry.radius.y * Math.sin(k * xGeometry.deltaPhi) + xGeometry.offset.y ) + "px";
+        		}
+        	}
+		}
+	},
+    
+    // --------------------------------------------------------------------------- 
+    // layout function to put all elements on a circle
+	// --------------------------------------------------------------------------- 
+    animated_circle: function* ( xJsonArgs, xCmdArgs ) {
+        var i, j, k;        
         
+		var xElements = xJsonArgs.current.elements;
+        if (xElements.length > 0) {
+        	var xGeometry = this.getGeometry(xCmdArgs, xJsonArgs.current.context, xElements);
+            		
+    		for (i = 0; i < xElements.length; i++) {
+    			// xElements[i].parentElement.removeChild( xElements[i] );
+    			for (j = i + 1, k = 0; j < xElements.length; j++, k++) {
+    				xElements[j].style.left = ( xGeometry.center.x + xGeometry.radius.x * Math.cos(k * xGeometry.deltaPhi) + xGeometry.offset.x ) + "px";
+    				xElements[j].style.top  = ( xGeometry.center.y + xGeometry.radius.y * Math.sin(k * xGeometry.deltaPhi) + xGeometry.offset.y ) + "px";
+    				xElements[j].style.transition = "all " + 0.1 + "s";   
+    			} 
+    			yield 100;
+    		}
+    	}
+        
+        xJsonArgs.update();
+		var xElements = xJsonArgs.updnew.elements;
+		if (xElements.length > 0) {
+        	var xGeometry = this.getGeometry(xCmdArgs, xJsonArgs.updnew.context, xElements);
+    		
+    		// Prepare 
+    		for (i = 0; i < xElements.length; i++) {
+    			xElements[i].style.position = "absolute";                	
+                xElements[i].style.left = ( xGeometry.center.x + xGeometry.offset.x + xGeometry.radius.x) + "px";
+                xElements[i].style.top  = ( xGeometry.center.y + xGeometry.offset.y ) + "px";
+				xElements[i].style.transition = "all " + 0.1 + "s";   
+    		}
+    		yield 0;
+    		
+    		// Set position and wait for animation
+    		for (i = 0; i < xElements.length; i++) {
+    		    for (j = xElements.length - i - 1, k = 0; j < xElements.length; j++, k++) {
+    				xElements[j].style.left = ( xGeometry.center.x + xGeometry.radius.x * Math.cos(k * xGeometry.deltaPhi) + xGeometry.offset.x ) + "px";
+    				xElements[j].style.top  = ( xGeometry.center.y + xGeometry.radius.y * Math.sin(k * xGeometry.deltaPhi) + xGeometry.offset.y ) + "px";
+    		    }	
+    		    yield 100;
+    		}
+    	}
+		else {
+			return;
+		}
+		
         var xBackgrd = "";
         try {
-	        var aCanvas = document.createElement("canvas");;
-	        aCanvas.width  = xCx * 2;
-	        aCanvas.height = xCy * 2;
+        	var xGeometry = this.getGeometry(xCmdArgs, xJsonArgs.updnew.context, xElements);
+	        var aCanvas   = document.createElement("canvas");;
+	        aCanvas.width  = xGeometry.center.x * 2;
+	        aCanvas.height = xGeometry.center.x * 2;
+	        
 	        var aCtx = aCanvas.getContext('2d');
-	        aCtx.arc(xCx, xCy, xRy, 0, 2 * Math.PI);
+	        aCtx.arc(xGeometry.center.x, xGeometry.center.y, Math.min(xGeometry.radius.x, xGeometry.radius.y), 0, 2 * Math.PI);
 	        aCtx.lineWidth = 5;
 	        // aCtx.fillStyle = 'green';
 	        // aCtx.fill();
 	        aCtx.strokeStyle = '#003300';
 	        aCtx.stroke();
 	        xBackgrd = "url('"  + aCanvas.toDataURL() + "') no-repeat top left";
-            xJsonArgs.context.style.background = xBackgrd;
+            xJsonArgs.updnew.context.style.background = xBackgrd;
         }
         catch( xEx ) {
         	xBackgrd = xEx.message;
@@ -194,6 +325,8 @@ var eezzAgent = {
     }
 }
 
+/* ------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------- */
 function eezzConnect() {
 	eezzWebSocket   = new WebSocket(gSocketAddr);
     
@@ -275,6 +408,35 @@ function eezzConnect() {
             }
         }
 
+        /* update fragments for scripting */
+        for (xKeyElement in aJson.update) {
+            if (xKeyElement.endsWith('.script')) {
+            	xDestination  = xKeyElement.split('.');
+            	var xKeyHtml  = xDestination[0] + '.innerHTML';
+            	var xJsonArg  = {};
+            	
+            	xDstElement   = document.getElementsByName( xDestination[0] );
+            	if (xDstElement.length == 0) {
+            		break;
+            	}
+            	
+            	xJsonScript = JSON.parse( decodeURIComponent( aJson.update[xKeyElement] ));
+            	xJsonArg    = {
+            	    'name'   : xDestination[0], 
+            	    'context': xDstElement[0], 
+            	    'script' : xJsonScript  };
+            	
+            	delete aJson.update[xKeyElement];
+            	
+            	if (aJson.update[xKeyHtml]) {
+            		xJsonArg['innerHTML'] = decodeURIComponent( decodeURIComponent( aJson.update[xKeyHtml] ));            		
+            		delete aJson.update[xKeyHtml];
+            	}
+            	eezzAgent.script( xJsonArg );   
+            	break;
+            }
+        }
+        
         /* update fragments: insert values */
         for (xKeyElement in aJson.update) {
             xValElement   = decodeURIComponent( aJson.update[xKeyElement] );
@@ -298,14 +460,6 @@ function eezzConnect() {
             	continue;
             }
             
-            if (xDstAttribute == 'script') {
-            	try {
-            		eezzAgent.script( xDestination[0], xValElement );            	
-            	} catch (aEx) {
-            	}                
-            	continue;
-            }
-
             if (xDstElement[0].getAttribute('class') == 'eezzTreeNode') {
             	if (xDestination.length < 3) {
             		continue;
@@ -332,9 +486,9 @@ function eezzConnect() {
         if (xEezzStatus != null) {
         	xEezzStatus.innerHTML = "connected";
         }
-
-    }     
+    }
 }
+
 
 /* --------------------------------- */
 /* --------------------------------- */
