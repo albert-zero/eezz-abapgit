@@ -94,13 +94,19 @@ var eezzAgent = {
         	aJsonArg['update'] = (         			
     			function(aJsonContext) {    				
     				return function() {
-    					aJsonContext.current.context.replaceWith(aJsonContext.updnew.context);    						
+    					var xParent = aJsonContext.current.context.parentNode;
+    					xParent.replaceChild(aJsonContext.updnew.context, aJsonContext.current.context);
+    					// aJsonContext.current.context.replaceWith(aJsonContext.updnew.context);    						
 
     					if (aJsonContext.current.header.length  > 0 && aJsonContext.updnew.header.length  > 0) {
-        					aJsonContext.current.header[0].replaceWidth(aJsonContext.updnew.header[0]);
+    						xParent = aJsonContext.current.header[0].parentNode;
+        					xParent.replaceChild(aJsonContext.updnew.header[0], aJsonContext.current.header[0]);
+    						// aJsonContext.current.header[0].replaceWidth(aJsonContext.updnew.header[0]);
     					}
         				if (aJsonContext.current.footer.length  > 0 && aJsonContext.updnew.footer.length  > 0) {
-        					aJsonContext.current.footer[0].replaceWith(aJsonContext.updnew.footer[0]);
+    						xParent = aJsonContext.current.footer[0].parentNode;
+        					xParent.replaceChild(aJsonContext.updnew.footer[0], aJsonContext.current.footer[0]);
+        					// aJsonContext.current.footer[0].replaceWith(aJsonContext.updnew.footer[0]);
         				}
     					aJsonContext.current.elements.length = 0;
     				}
@@ -161,7 +167,6 @@ var eezzAgent = {
     			window.setTimeout( function(){ eezzAgent.runAnimation(timestamp, aGenerator, xCmdArgs); }, xTimer );
     		}
     		else  {
-    			xCmdArgs.timestamp = timestamp;
     			requestAnimationFrame( function(timestamp){ runAnimation(timestamp, aGenerator, xCmdArgs); } );
     		}
     	}
@@ -229,7 +234,7 @@ var eezzAgent = {
     		},
     		offset  : {
     			x: - xElemSize.width / 2.0,
-    			y: - xElemSize.height/ 2.0    			
+    			y: - xElemSize.height/ 2.0
     		}
 		}
 		return xGeometry;
@@ -286,6 +291,10 @@ var eezzAgent = {
                 xElements[i].style.left = ( xGeometry.center.x + xGeometry.offset.x + xGeometry.radius.x) + "px";
                 xElements[i].style.top  = ( xGeometry.center.y + xGeometry.offset.y ) + "px";
 				xElements[i].style.transition = "all " + 0.1 + "s";   
+	            xElements[i].style.physics    = { 
+	            		"velocity": (2 * Math.PI * xGeometry.radius.x)/1000,  
+	            		"phi"     : 0,
+	            		"delay"   : i * 1000 / xElements.length }
     		}
     		yield 0;
     		
@@ -293,7 +302,7 @@ var eezzAgent = {
     		for (i = 0; i < xElements.length; i++) {
     		    for (j = xElements.length - i - 1, k = 0; j < xElements.length; j++, k++) {
     				xElements[j].style.left = ( xGeometry.center.x + xGeometry.radius.x * Math.cos(k * xGeometry.deltaPhi) + xGeometry.offset.x ) + "px";
-    				xElements[j].style.top  = ( xGeometry.center.y + xGeometry.radius.y * Math.sin(k * xGeometry.deltaPhi) + xGeometry.offset.y ) + "px";
+    				xElements[j].style.top  = ( xGeometry.center.y + (xGeometry.radius.y-20) * Math.sin(k * xGeometry.deltaPhi) + xGeometry.offset.y ) + "px";
     		    }	
     		    yield 100;
     		}
@@ -310,7 +319,7 @@ var eezzAgent = {
 	        aCanvas.height = xGeometry.center.x * 2;
 	        
 	        var aCtx = aCanvas.getContext('2d');
-	        aCtx.arc(xGeometry.center.x, xGeometry.center.y, Math.min(xGeometry.radius.x, xGeometry.radius.y), 0, 2 * Math.PI);
+	        aCtx.arc(xGeometry.center.x, xGeometry.center.y, Math.min(xGeometry.radius.x, xGeometry.radius.y) + 20, 0, 2 * Math.PI);
 	        aCtx.lineWidth = 5;
 	        // aCtx.fillStyle = 'green';
 	        // aCtx.fill();
@@ -322,7 +331,62 @@ var eezzAgent = {
         catch( xEx ) {
         	xBackgrd = xEx.message;
         }
-    }
+    },
+
+	// --------------------------------------------------------------------------- 
+	// layout function to put all elements on a circle
+	// --------------------------------------------------------------------------- 
+	/*
+	 * 
+	 animated_physic: function* ( xJsonArgs, xCmdArgs ) {
+	    var i, j, k;
+	    var xStart    = new Date().getTime();
+	    var xTime     = 0;
+	    var xInterval = 0;
+	    var xDuration = 0;
+	    var deltaPhi  = 0;
+	    
+        xJsonArgs.update();
+		var xElements = xJsonArgs.updnew.elements;
+		if (xElements.length == 0) {
+			return;
+		}
+		
+		// Prepare         	
+		var xGeometry = this.getGeometry(xCmdArgs, xJsonArgs.updnew.context, xElements);
+		for (i = 0; i < xElements.length; i++) {
+			xElements[i].style.position = "absolute";                	
+            xElements[i].style.left = ( xGeometry.center.x + xGeometry.offset.x + xGeometry.radius.x) + "px";
+            xElements[i].style.top  = ( xGeometry.center.y + xGeometry.offset.y ) + "px";
+            xElements[i].style.physics  = { 
+            		"velocity": (2 * Math.PI * xGeometry.radius.x)/1000,  
+            		"phi"     : 0,
+            		"delay"   : i * 1000 / xElements.length }
+            }
+		}
+		yield -1;
+		
+		// Set position and wait for animation
+		for (i = 0; i < xElements.length; i++) {
+			xTime      = new Date().getTime();
+			xInterval  = xTime - xStart;
+			xStart     = xTime;
+			xDuration += xInterval; 
+			
+			if (xElements[i].physics.delay < xDuration) {
+				continue;
+			}
+			
+			if (xDuration > 1000) {
+				break;
+			}
+			xElements[i].style.physics.phi += xElements[i].style.physics.velocity * xInterval;
+			
+			xElements[j].style.left = ( xGeometry.center.x + xGeometry.radius.x      * Math.cos(xElements[i].style.physics.phi) + xGeometry.offset.x ) + "px";
+			xElements[j].style.top  = ( xGeometry.center.y + (xGeometry.radius.y-20) * Math.sin(xElements[i].style.physics.phi) + xGeometry.offset.y ) + "px";						
+		    yield -1;
+		}
+	}*/
 }
 
 /* ------------------------------------------------------------------------------- */

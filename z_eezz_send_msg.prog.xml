@@ -3,7 +3,7 @@
  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
   <asx:values>
    <PROGDIR>
-    <NAME>ZABAPGIT_TEST_SSL</NAME>
+    <NAME>Z_EEZZ_SEND_MSG</NAME>
     <STATE>A</STATE>
     <VARCL>X</VARCL>
     <SUBC>1</SUBC>
@@ -14,8 +14,8 @@
    <TPOOL>
     <item>
      <ID>R</ID>
-     <ENTRY>Report ZABAPGIT_TEST_SSL</ENTRY>
-     <LENGTH>24</LENGTH>
+     <ENTRY>Program Z_EEZZ_SEND_MSG</ENTRY>
+     <LENGTH>23</LENGTH>
     </item>
    </TPOOL>
   </asx:values>

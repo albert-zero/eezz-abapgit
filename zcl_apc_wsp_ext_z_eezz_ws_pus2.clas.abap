@@ -8,6 +8,7 @@ public section.
 
   interfaces IF_AMC_MESSAGE_RECEIVER .
   interfaces IF_AMC_MESSAGE_RECEIVER_PCP .
+  interfaces IF_AMC_MESSAGE_RECEIVER_TEXT .
 
   methods IF_APC_WSP_EXTENSION~ON_MESSAGE
     redefinition .
@@ -23,13 +24,11 @@ CLASS ZCL_APC_WSP_EXT_Z_EEZZ_WS_PUS2 IMPLEMENTATION.
 
 
   METHOD if_amc_message_receiver_pcp~receive.
-
-    zcl_eezz_agent=>zif_eezz_agent~on_event(
-         EXPORTING
-           i_message         = i_message
-           i_context         = i_context ).
-
   ENDMETHOD.
+
+
+  method IF_AMC_MESSAGE_RECEIVER_TEXT~RECEIVE.
+  endmethod.
 
 
   method IF_APC_WSP_EXTENSION~ON_MESSAGE.
@@ -62,36 +61,40 @@ CLASS ZCL_APC_WSP_EXT_Z_EEZZ_WS_PUS2 IMPLEMENTATION.
   endmethod.
 
 
-  METHOD if_apc_wsp_extension~on_start.
-    TRY.
+  method if_apc_wsp_extension~on_start.
+    try.
 *       send the message on WebSocket connection
-        DATA(lo_message) = i_message_manager->create_message( ).
+        data(lo_message) = i_message_manager->create_message( ).
 
         "lo_message->set_text( |{ sy-mandt }/{ sy-uname }: ON_START has been successfully executed !| ).
         "i_message_manager->send( lo_message ).
 
-        DATA(lo_binding) = i_context->get_binding_manager( ).
-        data(x_conn_id) = i_context->GET_CONNECTION_ID( ).
-        cl_amc_channel_manager=>create_message_consumer(
-                   i_application_id = 'Z_EEZZ_WS_MSG_CHANNEL'
-                   i_channel_id     = '/eezz' ).
-*                   I_CHANNEL_EXTENSION_ID =
-*            )->start_message_delivery( i_receiver = me ).
+        data(lo_binding) = i_context->get_binding_manager( ).
+        data(x_conn_id)  = i_context->get_connection_id( ).
+
+        data(x_msg_cons) = cl_amc_channel_manager=>create_message_consumer(
+                              i_application_id = 'Z_EEZZ_WS_MSG_CHANNEL'
+                              i_channel_id     = '/eezz').
+        x_msg_cons->start_message_delivery( i_receiver = me ).
+        "cl_amc_channel_manager=>create_message_consumer(
+        "           i_application_id = 'Z_EEZZ_WS_MSG_CHANNEL'
+        "           i_channel_id     = '/eezz'
+        "    )->start_message_delivery( i_receiver =  me ).
 *
-*        lo_binding->bind_amc_message_consumer(
-*                   i_application_id = '/ISDFPS/LM'
-*                   i_channel_id     = '/lm/admin'
-*                  ).
+        lo_binding->bind_amc_message_consumer(
+                   i_application_id = 'Z_EEZZ_WS_MSG_CHANNEL'
+                   i_channel_id     = '/eezz'
+                  ).
 *        lo_binding->bind_amc_message_consumer(
 *                       i_application_id = '/ISDFPS/LM'
 *                       i_channel_id     = '/lm/stat'
 *                      ).
 
-      CATCH cx_apc_error INTO DATA(lx_apc_error).
-        MESSAGE lx_apc_error->get_text( ) TYPE 'E'.
-      CATCH cx_root INTO data(lx_root).
+      catch cx_apc_error into data(lx_apc_error).
+        message lx_apc_error->get_text( ) type 'E'.
+      catch cx_root into data(lx_root).
         data(xl_text) = lx_root->get_text( ).
-        MESSAGE lx_root->get_text( ) TYPE 'E'.
-    ENDTRY.
-  ENDMETHOD.
+        message lx_root->get_text( ) type 'E'.
+    endtry.
+  endmethod.
 ENDCLASS.

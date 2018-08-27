@@ -8,6 +8,8 @@ class ZCL_EEZZ_AGENT definition
 public section.
 
   interfaces ZIF_EEZZ_AGENT .
+  interfaces IF_AMC_MESSAGE_RECEIVER .
+  interfaces IF_AMC_MESSAGE_RECEIVER_PCP .
 
   data MT_MESSAGES type ZTTY_MESSAGES .
 
@@ -62,8 +64,14 @@ ENDCLASS.
 CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
 
 
-  method CONSTRUCTOR.
-
+  method constructor.
+    try.
+        data(x_msg_cons) = cl_amc_channel_manager=>create_message_consumer(
+                              i_application_id = 'Z_EEZZ_WS_MSG_CHANNEL'
+                              i_channel_id     = '/eezz/web').
+        x_msg_cons->start_message_delivery( i_receiver = me ).
+      catch cx_amc_error.
+    endtry.
   endmethod.
 
 
@@ -275,6 +283,43 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
   endmethod.
 
 
+  method if_amc_message_receiver_pcp~receive.
+
+    data: x_pcp_fields type pcp_fields.
+    data: xt_update    type ztty_update.
+
+    try.
+        i_message->get_fields( changing c_fields = x_pcp_fields ).
+        data(x_event_key)   = i_message->get_field( |eezz_event_key| ).
+        data(x_target)      = i_message->get_field( |eezz_target| ).
+        data(x_agent)       = zcl_eezz_agent=>zif_eezz_agent~m_eezz_agent .
+
+        data(x_event_entry) = m_tbl_event[ c_hash = x_event_key ].
+
+        loop at x_pcp_fields into data(x_pcp).
+          data(x_translate) = x_event_entry-c_json->get( |/{ x_event_key }/{ x_pcp-name }.{ x_pcp-value }| ).
+
+          if x_translate is bound.
+            data(x_named_target) = x_translate->*[ 1 ]-c_key.
+
+            replace 'this' with x_target into x_named_target.
+            append value #( c_key = x_named_target c_value = x_translate->*[ 1 ]-c_value ) to xt_update.
+          endif.
+        endloop.
+
+        data(x_response)    = zcl_eezz_json=>gen_response( ref #( xt_update ) ).
+
+        cast if_amc_message_producer_text(
+             cl_amc_channel_manager=>create_message_producer(
+               i_application_id = 'Z_EEZZ_WS_MSG_CHANNEL'
+               i_channel_id     = '/eezz' )
+          )->send( i_message = x_response ).
+      catch cx_amc_error cx_root into data(x_exc).
+        data(x_text) = x_exc->get_text( ).
+    endtry.
+  endmethod.
+
+
   method parse_eezz_dom.
 
     data: x_dictionary     type ref to ztty_dictionary.
@@ -377,7 +422,7 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
         endif.
       endif.
 
-      data(x_eezz_script) = x_next->get_attributes( )->get_named_item_ns( 'data-eezz-script' ).
+      data(x_eezz_script) = x_next->get_attributes( )->get_named_item_ns( 'data-eezz-async' ).
       if x_eezz_script is bound.
         x_json = new zcl_eezz_json( iv_json = x_eezz_script->get_value( ) ).
         data(x_tbl_script) = x_json->get( ).
@@ -584,59 +629,6 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
   endmethod.
 
 
-  method zif_eezz_agent~on_event.
-
-    data: x_agent      type ref to zcl_eezz_agent.
-    data: x_eezz_table type ref to zif_eezz_table.
-
-    x_agent ?= zif_eezz_agent~m_eezz_agent.
-
-    if x_agent is not bound.
-      return.
-    endif.
-
-    try.
-        data(x_event)         = x_agent->m_tbl_event[ c_event = |message-key| ].
-        data(x_json)          = x_event-c_json.
-        data(x_json_update)   = x_json->get( iv_path = 'update' ).
-        data(x_json_callback) = x_json->get( iv_path = 'callback' ).
-
-        if x_json_callback is bound.
-          x_eezz_table   = x_json->callback( iv_symbols = ref #( x_agent->m_tbl_global ) ).
-        else.
-          data(c_symbol) = x_agent->m_tbl_global[ c_name = x_event-c_name ].
-          x_eezz_table   = c_symbol-c_object.
-        endif.
-
-        if x_eezz_table is not bound.
-          return.
-        endif.
-
-        data(x_ixml_node) = x_eezz_table->create_node( iv_symbols = ref #( x_agent->m_tbl_global ) ).
-
-        " create hasn from i_message fileds
-        " find the hash in x_ixml_node
-        data(x_processor) = new cl_xslt_processor( ).
-        x_processor->set_source_node( x_ixml_node ).
-        x_processor->set_expression( '//*[@name]' ).
-        x_processor->run( progname = space ).
-        data(x_nodelist) = x_processor->get_nodes( ).
-
-        " loop at x_nodelist
-        " generate update if name == hash
-        " use the x_json_update to generate to list of update requests:
-        " this.<any resource> ==> <id>.<node_item any_resource>
-        " this.innerHTML      ==> <id>.<node2xml( note_item )
-        " <name>.<attribute>  ==> possible replacement by i_message fields using {}
-
-        i_message->get_field( |key| ).
-      catch cx_ac_message_type_pcp_error.
-      catch cx_sy_itab_line_not_found.
-      catch cx_root.
-    endtry.
-  endmethod.
-
-
   method zif_eezz_agent~on_websocket.
 
 **************************************************************
@@ -736,6 +728,7 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
             data(x_response2) = x_agent->parse_eezz_dom( iv_document = x_document iv_ostream = x_out_stream ).
             x_message->set_text( x_response2 ).
             i_message_manager->send( x_message ).
+
           else.
             data(x_tmp_agent) = new zcl_eezz_agent( ).
             data(x_num_err)   = x_xml_parser->num_errors( ).

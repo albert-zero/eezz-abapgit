@@ -1,32 +1,24 @@
-class zcl_eezz_table definition
+class ZCL_EEZZ_TABLE definition
   public
   create public .
 
-  public section.
+public section.
 
-    interfaces zif_eezz_table .
+  interfaces ZIF_EEZZ_TABLE .
 
-    aliases do_navigate
-      for zif_eezz_table~do_navigate .
-    aliases do_select
-      for zif_eezz_table~do_select .
-    aliases do_sort
-      for zif_eezz_table~do_sort .
-    aliases get_column_names
-      for zif_eezz_table~get_column_names .
-    aliases get_dictionary
-      for zif_eezz_table~get_dictionary .
-    aliases get_row
-      for zif_eezz_table~get_row .
-    aliases get_selected_obj
-      for zif_eezz_table~get_selected_obj .
-    aliases has_changed
-      for zif_eezz_table~has_changed .
+  aliases DO_NAVIGATE
+    for ZIF_EEZZ_TABLE~DO_NAVIGATE .
+  aliases GET_HASH
+    for ZIF_EEZZ_TABLE~GET_HASH .
+  aliases GET_SELECTED_OBJ
+    for ZIF_EEZZ_TABLE~GET_SELECTED_OBJ .
+  aliases SEND_MESSAGE_PCP
+    for ZIF_EEZZ_TABLE~SEND_MESSAGE_PCP .
 
-    methods constructor
-      importing
-        !iv_table   type ref to data optional
-        !table_name type string optional .
+  methods CONSTRUCTOR
+    importing
+      !IV_TABLE type ref to DATA optional
+      !TABLE_NAME type STRING optional .
 protected section.
 
   aliases MT_UPDATE
@@ -326,6 +318,11 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
   endmethod.
 
 
+  method ZIF_EEZZ_TABLE~GET_HASH.
+    rv_hash = zcl_eezz_helper=>create_hash_for_table_key( it_rows = ref #( mt_column_names ) iv_line = iv_line ).
+  endmethod.
+
+
   METHOD zif_eezz_table~get_row.
    DATA ls_cell  TYPE zstr_cell.
 
@@ -437,6 +434,32 @@ endmethod.
 
   method zif_eezz_table~has_changed.
     rv_has_changed = abap_true.
+  endmethod.
+
+
+  method zif_eezz_table~send_message_pcp.
+    try.
+        data(x_hash_name) = me->get_hash( iv_line ).
+        data(pcp_message) = cl_ac_message_type_pcp=>create( ).
+
+        loop at it_fields->* into data(x_pcp).
+          pcp_message->set_field( i_name = x_pcp-name i_value = x_pcp-value ).
+        endloop.
+
+        pcp_message->set_field( i_name = |eezz_event_key| i_value = iv_event    ).
+        pcp_message->set_field( i_name = |eezz_target|    i_value = x_hash_name ).
+
+        cast if_amc_message_producer_pcp(
+          cl_amc_channel_manager=>create_message_producer(
+            i_application_id = 'Z_EEZZ_WS_MSG_CHANNEL'
+            i_channel_id     = '/eezz/web' )
+        )->send( i_message = pcp_message ).
+      catch cx_amc_error cx_ac_message_type_pcp_error  into data(x_exception).
+        data(x_error) = x_exception->get_text( ).
+      catch CX_SY_MOVE_CAST_ERROR into data(x_exc_move).
+        data(x_error_mv) = x_exc_move->get_text( ).
+        cl_demo_output=>display( x_error_mv ).
+    endtry.
   endmethod.
 
 

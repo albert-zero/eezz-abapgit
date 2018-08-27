@@ -44,6 +44,12 @@
     </SEOCOMPOTX>
     <SEOCOMPOTX>
      <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
+     <CMPNAME>GET_HASH</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Returns a hash for a given line</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
      <CMPNAME>GET_ROW</CMPNAME>
      <LANGU>E</LANGU>
      <DESCRIPT>Get one row</DESCRIPT>
@@ -107,6 +113,12 @@
      <CMPNAME>M_VISIBLE_ITEMS</CMPNAME>
      <LANGU>E</LANGU>
      <DESCRIPT>number of items in scroll navigation</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
+     <CMPNAME>SEND_MESSAGE_PCP</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Creates and sends an AMC message</DESCRIPT>
     </SEOCOMPOTX>
    </DESCRIPTIONS>
   </asx:values>

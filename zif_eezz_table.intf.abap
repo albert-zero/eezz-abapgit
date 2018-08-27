@@ -58,4 +58,14 @@ interface ZIF_EEZZ_TABLE
       !IV_SYMBOLS type ref to ZTTY_SYMBOLS
     returning
       value(IO_TABLE_NODE) type ref to IF_IXML_NODE .
+  methods GET_HASH
+    importing
+      !IV_LINE type ANY
+    returning
+      value(RV_HASH) type STRING .
+  methods SEND_MESSAGE_PCP
+    importing
+      !IV_EVENT type STRING
+      !IV_LINE type ANY
+      !IT_FIELDS type ref to PCP_FIELDS .
 endinterface.
