@@ -8,8 +8,9 @@ public section.
   class-methods CREATE_HASH_FOR_TABLE_KEY
     importing
       !IT_ROWS type ref to ZTTY_EEZZ_ROW
-      !IV_LINE type ANY
-      !IV_FIELD type STRING optional
+      !IV_LINE type ANY optional
+      !IV_PATH type STRING optional
+      !IV_CLEAR type ABAP_BOOL default ABAP_FALSE
     returning
       value(RV_HASH) type STRING .
   class-methods CREATE_APC_URL
@@ -73,16 +74,27 @@ CLASS ZCL_EEZZ_HELPER IMPLEMENTATION.
           x_data_as_xstring type xstring,
           x_genkey          type string.
 
-    loop at it_rows->* into data(x_wa_col) where c_keyflag eq abap_true.
-      assign component x_wa_col-c_field_name of structure iv_line to field-symbol(<fs_value>).
+    if iv_path is not initial.
+      x_genkey = iv_path.
+    endif.
 
-      if sy-subrc eq 0.
-        concatenate x_genkey <fs_value> into x_genkey.
-      endif.
-    endloop.
+    if it_rows is not initial and iv_line is not initial.
+      loop at it_rows->* into data(x_wa_col) where c_keyflag eq abap_true.
+        assign component x_wa_col-c_field_name of structure iv_line to field-symbol(<fs_value>).
 
-    if iv_field is not initial.
-      concatenate x_genkey iv_field into x_genkey.
+        if sy-subrc eq 0.
+          if x_genkey is initial.
+            x_genkey = <fs_value>.
+          else.
+            concatenate x_genkey <fs_value> into x_genkey separated by '/'.
+          endif.
+        endif.
+      endloop.
+    endif.
+
+    if iv_clear = abap_true.
+      rv_hash = x_genkey.
+      return.
     endif.
 
     try.

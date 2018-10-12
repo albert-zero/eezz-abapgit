@@ -94,13 +94,6 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
 
     data(x_class) = cast if_ixml_element( iv_node )->get_attribute_ns( |class| ).
 
-    " Evaluate the attribute "innerHTML" for value "this" in update requests:
-    if strlen( iv_path ) > 0.
-      x_path   = |{ m_table_name }:{ iv_path }|.
-      cast if_ixml_element( iv_node )->set_attribute_ns( name = 'id' value  = x_path ).
-      x_update = cl_http_utility=>escape_url( |innerHTML.{ x_path }| ).
-    endif.
-
     modify table m_dictionary->* from value #( c_key = 'innerHTML' c_value = x_update ).
 
     data(x_element_name) = cast if_ixml_element( iv_node )->get_attribute_ns( 'name' ).
@@ -124,11 +117,13 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
     data x_refnode type ref to if_ixml_node.
 
     " clone 0 will only copy node, no childs
-    m_table_node     = io_node->clone( 0 ).
-    m_tbl_global     = it_globals.
-    m_tbl_eezz       = io_eezz_tbl.
-    m_dictionary     = io_eezz_tbl->get_dictionary( ).
-    m_table_name     = cast if_ixml_element( m_table_node )->get_attribute( 'name' ).
+    m_table_node      = io_node->clone( 0 ).
+    m_tbl_global      = it_globals.
+    m_tbl_eezz        = io_eezz_tbl.
+    m_dictionary      = io_eezz_tbl->get_dictionary( ).
+    m_table_name      = cast if_ixml_element( m_table_node )->get_attribute( 'name' ).
+    data(x_path)      = cast if_ixml_element( m_table_node )->get_attribute( 'data-eezz-path' ).
+    data(x_class)     = cast if_ixml_element( m_table_node )->get_attribute( 'class' ).
 
     data(x_processor) = new cl_xslt_processor( ).
     x_processor->set_source_node( io_node ).
@@ -144,6 +139,10 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
       x_name = x_next->get_name( ).
       if x_name eq 'tbody'.
         x_refnode = x_next->clone( 0 ).
+        if x_path is not initial and x_class cs |eezzTreeTemplate|.
+          cast if_ixml_element( x_refnode )->set_attribute_ns( name = |class|          value = |eezzTreeNode| ).
+          cast if_ixml_element( x_refnode )->set_attribute_ns( name = |data-eezz-path| value = x_path  ).
+        endif.
         m_table_node->append_child( x_refnode ).
         me->create_body( iv_table = io_node iv_parent = x_refnode iv_node = x_next  ).
       elseif x_name eq 'thead'.
@@ -226,12 +225,17 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
       " Store elements with display template in local template table
       x_eezz_json = new zcl_eezz_json( iv_json = x_eezz_attr->get_value( ) ).
 
-      if x_eezz_json->get( 'display' )    is bound.
-        data(x_jsonobj)     = x_eezz_json->get( 'display' ).
-        x_cwa_templ-c_key   = x_jsonobj->*[ 1 ]-c_key.
-        x_cwa_templ-c_value = x_jsonobj->*[ 1 ]-c_value.
-        x_cwa_templ-c_node  = x_next->clone( ).
-        append x_cwa_templ to x_tbl_templ.
+      " Check the dictionary to display special nodes:
+      data(x_jsonobj) = x_eezz_json->get( 'display' ).
+      if x_jsonobj is bound.
+        data(x_jsonrow) = x_jsonobj->*[ 1 ].
+
+        if x_jsonrow-c_key co |type|.
+          append value #( c_key = |type| c_value = x_jsonrow-c_value c_node = x_next ) to x_tbl_templ.
+        elseif line_exists( m_dictionary->*[ c_key = x_jsonrow-c_key c_value = x_jsonrow-c_value ] ).
+          append value #( c_key = x_jsonrow-c_key c_value = x_jsonrow-c_value c_node = x_next ) to x_tbl_templ.
+        endif.
+
         continue.
       endif.
 
@@ -276,35 +280,6 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
         continue.
       endif.
 
-      " Generate tiles and continue
-      "if x_tiles->*[ 1 ]-c_key eq 'tiles'.
-
-      "  data(x_tiles_num) = x_tiles->*[ 1 ]-c_value.
-      "  data(x_row_num) = m_dictionary->*[ c_key = 'table_next' ]-c_value.
-      "  data(x_rows) = floor( x_row_num / x_tiles_num ).
-      "  x_idx = 0.
-
-      " do x_rows times.
-      "   clear x_reference.
-      "   if x_reference is not bound.  " For each row I need a new clone
-      "     x_dbg_name = x_next->get_name( ).
-      "     " Clone only TR, TDs are added in create_tile( )
-      "     x_reference = x_next->->clone( 0 ).
-      "  endif.
-
-      "   iv_parent->append_child( x_reference ).
-      "   do x_tiles_num times.
-      "     add 1 to x_idx.
-      "     x_table_row = m_tbl_eezz->get_row( x_idx ).
-      "     if x_table_row is not bound.
-      "       exit.
-      "     endif.
-      "     me->create_tile( iv_parent = x_reference iv_node = x_next  iv_row = x_table_row iv_index = x_idx ).
-      "   enddo.
-      "enddo.
-
-      "continue.
-      "endif.
 
       " Generate table elements and continue
       do 1000 times.
@@ -322,23 +297,22 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
           exit.
         endif.
 
-        " Check if the type is specified
+        " Check if the type is specified and select a template
         if line_exists( x_table_row->*[ c_field_name = '_eezz_row_cell_' ] ).
-          data(x_row_key) = x_table_row->*[ c_field_name = '_eezz_row_cell_' ]-c_type.
-          x_genkey        = x_table_row->*[ c_field_name = '_eezz_row_cell_' ]-c_genkey.
-
-          if cast if_ixml_element( iv_table )->get_attribute_ns( |class| ) cs |eezzTree|.
-            x_path = x_table_row->*[ x_num_column + 1 ]-c_value.
-            modify table m_dictionary->* from value #( c_key = 'table_path' c_value = x_path ).
+          data(x_cell) = x_table_row->*[ c_field_name = '_eezz_row_cell_' ].
+          if line_exists( x_tbl_templ[ c_key = |type| c_value = x_cell-c_value ] ).
+            assign x_tbl_templ[ c_key = |type| c_value = x_cell-c_value ] to <fs_cw_templ>.
           endif.
-
-          if line_exists( x_tbl_templ[ c_value = x_row_key ] ).
-            assign x_tbl_templ[ c_value = x_row_key ] to <fs_cw_templ>.
-          endif.
+          x_path = x_cell-c_value.
         endif.
 
+        " Assign the default if possible, else continue
         if <fs_cw_templ> is not assigned.
-          assign x_tbl_templ[ c_key = 'default' ] to <fs_cw_templ>.
+          if line_exists( x_tbl_templ[ c_key = 'default' ] ).
+            assign x_tbl_templ[ c_key = 'default' ] to <fs_cw_templ>.
+          else.
+            continue.
+          endif.
         endif.
 
         if <fs_cw_templ>-c_repl is not bound.
@@ -348,6 +322,10 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
           <fs_cw_templ>-c_node = x_tr_new_node.
 
           try.
+              if x_path is not initial.
+                cast if_ixml_element( x_tr_new_node )->set_attribute_ns( name = |data-eezz-path| value = x_path ).
+              endif.
+
               data(x_row_update) = cast if_ixml_element( x_tr_new_node )->get_attribute_ns( 'data-eezz-event' ).
               if strlen( x_row_update ) > 0.
                 <fs_cw_templ>-c_json = new zcl_eezz_json( iv_json = x_row_update ).
@@ -374,35 +352,32 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
         " update td values
         loop at <fs_cw_templ>-c_repl->* into data(x_wa_repl).
           data(x_attr_val) = x_wa_repl-c_value.
-          data x_attr_rep  type string.
+          data x_attr_rep   type string.
+          data x_field_name type string.
 
-          if line_exists( x_table_row->*[ c_field_name = x_wa_repl-c_field_name ] ).
+          x_field_name = x_wa_repl-c_field_name.
+
+          if line_exists( x_table_row->*[ c_field_name = x_field_name ] ).
             data(x_row_cell) = x_table_row->*[ c_field_name = x_wa_repl-c_field_name ].
             replace '{}' in x_attr_val with x_row_cell-c_value.
             x_wa_repl-c_node->set_value( x_attr_val ).
-            cast if_ixml_element( x_wa_repl-c_reference )->set_attribute_ns( name = 'name' value = x_row_cell-c_genkey ).
+            cast if_ixml_element( x_wa_repl-c_reference )->set_attribute_ns( name = 'name' value = x_field_name ).
           elseif line_exists( m_dictionary->*[ c_key = x_wa_repl-c_field_name ] ).
             data(x_dict_row) = m_dictionary->*[ c_key = x_wa_repl-c_field_name ].
             data(x_dict_val) = x_dict_row-c_value.
-
-            " generate a unique key using the row attribute by dictionary plus the column name:
-            if x_wa_repl-c_filter eq 'eezz-genkey'.
-              x_dict_val = |{ x_dict_val }-{ x_wa_repl-c_field_name }|.
-            endif.
-
-            replace |\{{ x_wa_repl-c_filter }\}| in x_attr_val with x_dict_val.
-            if sy-subrc = 0.
-              x_wa_repl-c_node->set_value( x_attr_val ).
-            else.
-              x_wa_repl-c_node->set_value( x_dict_val ).
-            endif.
-
+            x_wa_repl-c_node->set_value( x_dict_val ).
+            cast if_ixml_element( x_wa_repl-c_reference )->set_attribute_ns( name = 'name' value = x_field_name ).
           endif.
         endloop.
 
         if line_exists( x_table_row->*[ c_field_name = '_eezz_row_cell_' ] ).
           x_row_cell = x_table_row->*[ c_field_name = '_eezz_row_cell_' ].
           cast if_ixml_element( <fs_cw_templ>-c_node )->set_attribute_ns( name = 'name' value = x_row_cell-c_genkey ).
+
+          "if line_exists( x_row_cell-c_dictionary->*[ c_key = |eezzPath| ] ).
+          "  x_path = x_row_cell-c_dictionary->*[ c_key = |eezzPath| ]-c_value.
+          "endif.
+
         endif.
 
         add_onclick_4_row( iv_node = <fs_cw_templ>-c_node iv_json = <fs_cw_templ>-c_json iv_idx = x_idx iv_path = x_path ).
@@ -497,135 +472,140 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
   endmethod.
 
 
-  METHOD create_header.
+  method create_header.
 
-    TYPES:
-      BEGIN OF ttemplates,
-        c_key   TYPE string,
-        c_value TYPE string,
-        c_node  TYPE REF TO if_ixml_node,
-      END OF ttemplates.
+    types:
+      begin of ttemplates,
+        c_key   type string,
+        c_value type string,
+        c_node  type ref to if_ixml_node,
+      end of ttemplates.
 
-    DATA x_cwa_templ  TYPE ttemplates.
-    DATA x_tbl_templ  TYPE TABLE OF ttemplates.
-    DATA x_eezz_json  TYPE REF TO zcl_eezz_json.
-    DATA x_table_row  TYPE REF TO ztty_eezz_row.
-    DATA: x_column_idx TYPE i,
-          x_filter_flg TYPE boolean,
-          x_field_name TYPE string,
-          x_outputlen  TYPE string.
+    data x_cwa_templ  type ttemplates.
+    data x_tbl_templ  type table of ttemplates.
+    data x_eezz_json  type ref to zcl_eezz_json.
+    data x_table_row  type ref to ztty_eezz_row.
+    data: x_column_idx type i,
+          x_filter_flg type boolean,
+          x_field_name type string,
+          x_outputlen  type string.
 
-    DATA(x_processor) = NEW cl_xslt_processor( ).
+    data(x_processor) = new cl_xslt_processor( ).
     x_processor->set_source_node( iv_node ).
     x_processor->set_expression( |node()| ).
     x_processor->run( progname = space ).
 
-    DATA(x_nodelist) = x_processor->get_nodes( ).
-    DATA(x_iterator) = x_nodelist->create_iterator( ).
+    data(x_nodelist) = x_processor->get_nodes( ).
+    data(x_iterator) = x_nodelist->create_iterator( ).
 
-    DATA(x_name)  = iv_node->get_name( ).
+    data(x_name)  = iv_node->get_name( ).
 
-    IF x_name EQ 'thead'.
+    if x_name eq 'thead'.
 *      IF sy-uname EQ 'SELLCH'.
       x_filter_flg = abap_false.
 *      ENDIF.
-    ENDIF.
+    endif.
 
-    DO 10 TIMES.
-      DATA(x_next) = x_iterator->get_next( ).
-      IF x_next IS NOT BOUND.
-        EXIT.
-      ENDIF.
+    do 10 times.
+      data(x_next) = x_iterator->get_next( ).
+      if x_next is not bound.
+        exit.
+      endif.
 
       x_name = x_next->get_name( ).
-      IF x_name CN 'tr'.
+      if x_name cn 'tr'.
+        " append all elements within tr
         iv_parent->append_child( x_next ).
-        CONTINUE.
-      ENDIF.
+        continue.
+      endif.
 
-      DATA(x_attributes) = x_next->get_attributes( ).
-      IF x_attributes IS NOT BOUND.
+      data(x_attributes) = x_next->get_attributes( ).
+      if x_attributes is not bound.
         iv_parent->append_child( x_next ).
-        CONTINUE.
-      ENDIF.
+        continue.
+      endif.
 
-      DATA(x_eezz_attr) = x_attributes->get_named_item_ns( 'data-eezz-template' ).
-      IF x_eezz_attr IS BOUND.
+      data(x_eezz_attr) = x_attributes->get_named_item_ns( 'data-eezz-template' ).
+      if x_eezz_attr is not bound and x_name cs 'tr'.
+        " append all elements which are not template
+        iv_parent->append_child( x_next ).
+        continue.
+      endif.
 
-        x_eezz_json = NEW zcl_eezz_json( iv_json = x_eezz_attr->get_value( ) ).
 
-        DATA(x_tbl_row) = x_eezz_json->get_value( 'table-rows' ).
-        DATA(x_columns) = m_tbl_eezz->get_column_names( ).
+      x_eezz_json = new zcl_eezz_json( iv_json = x_eezz_attr->get_value( ) ).
+
+      data(x_tbl_row) = x_eezz_json->get_value( 'table-rows' ).
+      data(x_columns) = m_tbl_eezz->get_column_names( ).
 ***********************************************************
 *   Create Header Row
 ***********************************************************
-        " get <tr> tag template
-        DATA(x_tr) = x_next->clone( 0 ).
-        iv_parent->append_child( x_tr ).
+      " get <tr> tag template
+      data(x_tr) = x_next->clone( 0 ).
+      iv_parent->append_child( x_tr ).
 
-        DATA(x_node_list) = x_next->get_children( ).
-        DATA(x_node_list_it) = x_node_list->create_iterator( ).
-        DATA(x_th_node) = x_node_list_it->get_next( ).
-        WHILE x_th_node IS BOUND.
-          DATA(x_th) = x_th_node->clone( 0 ).
-          DATA(x_th_attributes) = x_th->get_attributes( ).
-          DATA(x_th_eezz_attr)  = x_th_attributes->get_named_item_ns( 'data-eezz-template' ).
-          IF x_th_eezz_attr IS INITIAL.
-            x_tr->append_child( x_th_node->clone( ) ).
-          ELSE.
-            DATA(x_th_eezz_json)  = NEW zcl_eezz_json( iv_json = x_th_eezz_attr->get_value( ) ).
-            mt_range              = x_th_eezz_json->get_range( x_columns ).
-            "DATA(x_tbl_column) = x_th_eezz_json->get( 'table-columns' ).
-            "create_column_filter( iv_filter = x_tbl_column->*[ 1 ]-c_value it_columns = x_columns ).
+      data(x_node_list) = x_next->get_children( ).
+      data(x_node_list_it) = x_node_list->create_iterator( ).
+      data(x_th_node) = x_node_list_it->get_next( ).
+      while x_th_node is bound.
+        data(x_th) = x_th_node->clone( 0 ).
+        data(x_th_attributes) = x_th->get_attributes( ).
+        data(x_th_eezz_attr)  = x_th_attributes->get_named_item_ns( 'data-eezz-template' ).
+        if x_th_eezz_attr is initial.
+          x_tr->append_child( x_th_node->clone( ) ).
+        else.
+          data(x_th_eezz_json)  = new zcl_eezz_json( iv_json = x_th_eezz_attr->get_value( ) ).
+          mt_range              = x_th_eezz_json->get_range( x_columns ).
+          "DATA(x_tbl_column) = x_th_eezz_json->get( 'table-columns' ).
+          "create_column_filter( iv_filter = x_tbl_column->*[ 1 ]-c_value it_columns = x_columns ).
 
-            LOOP AT mt_range->* INTO DATA(x_wac_column).
-              x_column_idx = sy-tabix.
-              " get <th> tag template
-              x_th = x_next->get_first_child( )->clone( 0 ).
+          loop at mt_range->* into data(x_wac_column).
+            x_column_idx = sy-tabix.
+            " get <th> tag template
+            x_th = x_next->get_first_child( )->clone( 0 ).
 
-              x_th->set_value( x_wac_column-c_value ).
-              " add on_sort event
-              add_onclick_4_header( iv_parent = iv_parent iv_node = x_th iv_idx = x_wac_column-c_position ). "x_column_idx ).
+            x_th->set_value( x_wac_column-c_value ).
+            " add on_sort event
+            add_onclick_4_header( iv_parent = iv_parent iv_node = x_th iv_idx = x_wac_column-c_position ). "x_column_idx ).
 
-              DATA(x_name_) = x_th->get_name( ).
-              x_tr->append_child( x_th ).
-            ENDLOOP.
-          ENDIF.
-          x_th_node = x_node_list_it->get_next( ).
-        ENDWHILE.
+            data(x_name_) = x_th->get_name( ).
+            x_tr->append_child( x_th ).
+          endloop.
+        endif.
+        x_th_node = x_node_list_it->get_next( ).
+      endwhile.
 ***********************************************************
 *   Create Filter Row
 ***********************************************************
-        IF x_filter_flg EQ abap_true.
-          DATA x_xml_cl TYPE REF TO if_ixml.
-          x_xml_cl         = cl_ixml=>create( ).
-          DATA(x_document) = x_xml_cl->create_document( ).
-          x_tr = x_document->create_element_ns( |tr| ).
+      if x_filter_flg eq abap_true.
+        data x_xml_cl type ref to if_ixml.
+        x_xml_cl         = cl_ixml=>create( ).
+        data(x_document) = x_xml_cl->create_document( ).
+        x_tr = x_document->create_element_ns( |tr| ).
 
-          " x_tr = x_next->clone( 0 ).
-          CONCATENATE m_table_name '.filter' INTO DATA(x_filter_name).
-          CAST if_ixml_element( x_tr )->set_attribute_ns( name = 'name'  value = x_filter_name ).
-          CAST if_ixml_element( x_tr )->set_attribute_ns( name = 'class' value = 'eezzFilter'  ).
+        " x_tr = x_next->clone( 0 ).
+        concatenate m_table_name '.filter' into data(x_filter_name).
+        cast if_ixml_element( x_tr )->set_attribute_ns( name = 'name'  value = x_filter_name ).
+        cast if_ixml_element( x_tr )->set_attribute_ns( name = 'class' value = 'eezzFilter'  ).
 
-          iv_parent->append_child( x_tr ).
-          LOOP AT mt_range->* INTO x_wac_column.
-            x_column_idx = sy-tabix.
-            x_th = x_next->get_first_child( )->clone( 0 ).
-            DATA(x_input) = x_th->clone( 0 ).
-            x_input->set_name( 'input' ).
-            x_field_name = x_wac_column-c_field_name.
-            x_outputlen = x_wac_column-c_outputlen.
-            CAST if_ixml_element( x_input )->set_attribute_ns( name = 'data-eezz-column' value = x_field_name ).
-            CAST if_ixml_element( x_input )->set_attribute_ns( name = 'size' value = x_outputlen ).
-            x_th->append_child( new_child = x_input ).
-            x_tr->append_child( x_th ).
-          ENDLOOP.
-        ENDIF.
-        EXIT.
-      ENDIF.
-    ENDDO.
+        iv_parent->append_child( x_tr ).
+        loop at mt_range->* into x_wac_column.
+          x_column_idx = sy-tabix.
+          x_th = x_next->get_first_child( )->clone( 0 ).
+          data(x_input) = x_th->clone( 0 ).
+          x_input->set_name( 'input' ).
+          x_field_name = x_wac_column-c_field_name.
+          x_outputlen = x_wac_column-c_outputlen.
+          cast if_ixml_element( x_input )->set_attribute_ns( name = 'data-eezz-column' value = x_field_name ).
+          cast if_ixml_element( x_input )->set_attribute_ns( name = 'size' value = x_outputlen ).
+          x_th->append_child( new_child = x_input ).
+          x_tr->append_child( x_th ).
+        endloop.
+      endif.
+      exit.
+    enddo.
 
-  ENDMETHOD.
+  endmethod.
 
 
   method create_row.
@@ -651,6 +631,7 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
     data x_wa_repl     type zstr_cell.
     data x_replacement type ref to ztty_eezz_row.
     data x_json        type ref to zcl_eezz_json.
+    field-symbols: <fs> type zstr_cell.
 
     "x_replacement = create  ztty_eezz_row.
     create data x_replacement.
@@ -685,21 +666,45 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
         continue.
       endif.
 
+      " display elements related to the column type are collected for the table columns section
       data(x_cl_json)  = new zcl_eezz_json( iv_json = x_eezz_attr->get_value( ) ).
-      data(x_template) = x_cl_json->get( 'display' ).
-
+      data(x_template) = x_cl_json->get( 'display/type' ).
       if x_template is bound.
-        data(x_jsonobj)     = x_cl_json->get( 'display' ).
-        x_wac_templ-c_key   = x_jsonobj->*[ 1 ]-c_key.
-        x_wac_templ-c_value = x_jsonobj->*[ 1 ]-c_value.
+        data(x_jsonrow)     = x_template->*[ 1 ].
+        x_wac_templ-c_key   = x_jsonrow-c_value.
         x_wac_templ-c_node  = x_next.
 
         append x_wac_templ to x_tbl_templ.
         continue.
       endif.
 
+      " display elements related to row attributes are stable regarding their position
+      " and are inserted, if the attributes matches the value exact
+      x_template  = x_cl_json->get( 'display' ).
+      if x_template is bound and line_exists( iv_row->*[ c_field_name = |_eezz_row_cell_| ] ).
+        x_jsonrow = x_template->*[ 1 ].
+        data(x_rowcell) = iv_row->*[ c_field_name = |_eezz_row_cell_| ].
+        data(x_key)     = to_upper( x_jsonrow-c_key ).
+        if m_dictionary is bound.
+          if line_exists( m_dictionary->*[ c_key = x_jsonrow-c_key c_value = x_jsonrow-c_value ] ).
+            iv_parent->append_child( x_next->clone( ) ).
+          elseif line_exists( iv_row->*[ c_field_name = x_key c_value = x_jsonrow-c_value ] ).
+            assign iv_row->*[ c_field_name = x_key c_value = x_jsonrow-c_value ] to <fs>.
+            <fs>-c_type = x_key.
+            append value #( c_value = x_key c_node = x_next ) to x_tbl_templ.
+          elseif X_JSONROW-C_VALUE cs '*'.
+            assign iv_row->*[ c_field_name = x_key ] to <fs>.
+            <fs>-c_type = x_key.
+            append value #( c_value = x_key c_node = x_next ) to x_tbl_templ.
+          endif.
+        endif.
+        continue.
+      endif.
+
+      " display elements not in the template description are stable regarding their position
       x_template = x_cl_json->get( 'table-columns' ).
       if x_template is not bound.
+        iv_parent->append_child( x_next->clone( ) ).
         continue.
       endif.
 

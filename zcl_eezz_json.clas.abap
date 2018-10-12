@@ -16,10 +16,12 @@ public section.
       !IT_JSON type ref to ZTTY_EEZZ_JSON optional
       !IV_KEY type STRING
       !IV_VALUE type STRING optional
-      !IV_TYPE type STRING optional .
+      !IV_TYPE type STRING optional
+      !IV_CREATE type ABAP_BOOL default ABAP_FALSE .
   class-methods GEN_RESPONSE
     importing
       !IT_UPDATE type ref to ZTTY_UPDATE
+      !IV_COMMAND type STRING default 'update'
     returning
       value(RV_JSON) type STRING .
   class-methods GEN_HEADER_EVENT
@@ -92,6 +94,7 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
     data:
       x_class_name    type string,
       x_method_name   type string,
+      x_target_name   type string,
       x_tbl_callback  type ref to ztty_eezz_json,
       x_tbl_parameter type ref to ztty_eezz_json,
       x_str_call      type zstr_eezz_json,
@@ -105,22 +108,28 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
     data x_tbl_obj  type ref to zif_eezz_table.
 
     if iv_path is NOT INITIAL.
-      x_tbl_callback = me->get( iv_path ).
+      x_tbl_callback = me->get( iv_path = iv_path ).
     endif.
 
     if x_tbl_callback is initial.
-      x_tbl_callback = me->get( 'callback' ).
+      x_tbl_callback = me->get( iv_path = 'callback' ).
     endif.
 
     if x_tbl_callback is initial.
-      x_tbl_callback = me->get( 'eezzAgent.assign' ).
+      x_tbl_callback = me->get( iv_path = 'eezzAgent.assign' ).
     endif.
 
     if x_tbl_callback is initial.
       return.
     endif.
 
-    split x_tbl_callback->*[ 1 ]-c_key at '.' into x_class_name x_method_name.
+    split x_tbl_callback->*[ 1 ]-c_key at '.' into table data(x_callback_cmd).
+    try.
+      x_class_name  = x_callback_cmd[ 1 ].
+      x_method_name = x_callback_cmd[ 2 ].
+      x_target_name = x_callback_cmd[ 3 ].
+    catch cx_sy_itab_line_not_found.
+    endtry.
 
     try.
         x_tbl_parameter   = cast #( x_tbl_callback->*[ 1 ]-c_ref ).
@@ -214,7 +223,12 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
         return.
     endtry.
 
+
     rt_table ?= x_ref_obj.
+
+    if x_target_name is not initial.
+      modify table iv_symbols->* from value #( c_name = x_target_name c_object = rt_table ) TRANSPORTING c_object.
+    endif.
   endmethod.
 
 
@@ -418,16 +432,17 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
           x_tmp      type string.
 
     data(x_result_stream) = new cl_abap_string_c_writer(  ).
+    data(x_command)       = to_lower( iv_command ).
 
     sort it_update->* by c_prio.
 
-    x_result_stream->write( '{ "update":{' ).
+    x_result_stream->write( |\{ "{ x_command }":\{| ).
 
     loop at it_update->* into x_update.
       if sy-tabix <> 1.
         x_result_stream->write( |,| ).
       endif.
-      x_result_stream->write( |"{ x_update-c_key }":"{ CL_ABAP_DYN_PRG=>escape_xss_url( x_update-c_value ) }"| ).
+      x_result_stream->write( |"{ x_update-c_key }":"{ cl_abap_dyn_prg=>escape_xss_url( x_update-c_value ) }"| ).
     endloop.
     x_result_stream->write( '}' ).
     x_result_stream->write( '}' ).
@@ -439,8 +454,8 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
   method gen_row_event.
     data x_attributes type ref to ztty_eezz_json.
     data(x_comma)         = ||.
-    data(x_json_update)   = me->get( 'update' ).
-    data(x_json_callback) = me->get( 'callback' ).
+    data(x_json_update)   = me->get( iv_path = 'update' ).
+    data(x_json_callback) = me->get( iv_path = 'callback' ).
     data(x_json_stream)   = new cl_abap_string_c_writer(  ).
 
     if x_json_callback is bound.
@@ -490,7 +505,8 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
   method get.
     data:
       x_tbl_parameter type ref to ztty_eezz_json,
-      x_ref_str       type zstr_eezz_json.
+      x_ref_str       type zstr_eezz_json,
+      x_tbl_json      type ref to ztty_eezz_json.
 
     data(x_ref_tbl) = m_tbl_json.
 
@@ -577,8 +593,8 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
     else.
       loop at x_tbl_parameter->* into data(xwa).
         if xwa-c_type = 'str'.
-          if line_exists( iv_names->*[ c_field_name = xwa-c_value ] ).
-            append iv_names->*[ c_field_name = xwa-c_value ] to x_range->*.
+          if line_exists( iv_names->*[ c_field_name = to_upper( xwa-c_value ) ] ).
+            append iv_names->*[ c_field_name = to_upper( xwa-c_value ) ] to x_range->*.
           endif.
         elseif xwa-c_type = 'num'.
           if line_exists( iv_names->*[ xwa-c_value ] ).
@@ -603,10 +619,22 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
       x_str_call      type zstr_eezz_json.
 
     data(x_ref_tbl) = m_tbl_json.
+    data(x_path)    = iv_path.
 
     try.
-        x_ref_tbl   = cast #( m_tbl_json->*[ 1 ]-c_ref ).
-        x_str_call  = x_ref_tbl->*[ c_key = iv_path ].
+        split iv_path at '/' into table data(x_tbl_path).
+        data(x_entries) = lines( x_tbl_path ).
+
+        if x_entries > 1.
+          x_path  = x_tbl_path[ x_entries ].
+          delete x_tbl_path index x_entries.
+          concatenate lines of x_tbl_path into data(x_new_path) separated by '/'.
+          x_ref_tbl = me->get( iv_path = x_new_path ).
+        else.
+          x_ref_tbl = cast #( m_tbl_json->*[ 1 ]-c_ref ).
+        endif.
+
+        x_str_call  = x_ref_tbl->*[ c_key = x_path ].
         rv_value    = x_str_call-c_value.
       catch cx_sy_itab_line_not_found.
     endtry.
@@ -614,29 +642,56 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
   endmethod.
 
 
-  method JOIN.
+  method join.
     data x_ref_json   type ref to data.
     data x_value      type string.
-    data x_type       type string.
     data x_wajs_param type ref to zstr_eezz_json.
 
     " Get a referenece to the json table
-    data(x_ref_tbl)    = get( iv_path = iv_path ).
+    data(x_path)    = iv_path.
+    data(x_key)     = iv_key.
 
-    if x_ref_tbl is not bound.
-      return.
+    if x_path is initial.
+      if x_key cs |/|.
+        split x_key at '/' into table data(x_wa_path).
+        x_key  = x_wa_path[ lines( x_wa_path ) ].
+        delete x_wa_path index lines( x_wa_path ).
+        concatenate lines of x_wa_path into x_path SEPARATED BY '/'.
+      endif.
     endif.
 
-    if it_json is bound.
-      if iv_type is initial.
-        x_wajs_param = new zstr_eezz_json( c_key = iv_key  c_type = |object|  c_ref = it_json ).
-      else.
-        x_wajs_param = new zstr_eezz_json( c_key = iv_key  c_type = iv_type  c_ref = it_json ).
+    data(x_ref_tbl) = get( iv_path = x_path ).
+
+    if x_ref_tbl is not bound.
+      if iv_create = abap_false.
+        return.
       endif.
-      append x_wajs_param->* to x_ref_tbl->*.
-    elseif iv_value is not initial.
-      x_wajs_param = new zstr_eezz_json( c_key = iv_key  c_type = |str| c_value = iv_value ).
-      append x_wajs_param->* to x_ref_tbl->*.
+      clear x_wa_path.
+      split x_path at '/' into table x_wa_path.
+
+      x_ref_tbl = get( ).
+      loop at x_wa_path into data(x_wa_path_elem).
+        if not line_exists( x_ref_tbl->*[ c_key = x_wa_path_elem ] ).
+          insert value #( c_key = x_wa_path_elem c_type = |object| c_ref = new ztty_eezz_json( ) ) into table x_ref_tbl->*.
+        endif.
+        x_ref_tbl = cast #( x_ref_tbl->*[ c_key = x_wa_path_elem ]-c_ref ).
+      endloop.
+    endif.
+
+    data(x_type) = iv_type.
+
+    if it_json is bound and x_type is initial.
+      x_type = |object|.
+    endif.
+
+    if x_type is initial.
+      x_type = |str|.
+    endif.
+
+    if line_exists( x_ref_tbl->*[ c_key = iv_key ] ).
+      modify table x_ref_tbl->* from value #( c_key = x_key c_type = x_type c_value = iv_value c_ref = it_json ).
+    else.
+      append value #( c_key = x_key c_type = x_type c_value = iv_value c_ref = it_json ) to x_ref_tbl->*.
     endif.
 
   endmethod.

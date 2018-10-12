@@ -6,14 +6,42 @@ public section.
 
   interfaces ZIF_EEZZ_TABLE .
 
+  aliases MT_COLUMN_NAMES
+    for ZIF_EEZZ_TABLE~MT_COLUMN_NAMES .
+  aliases MT_DICTIONARY
+    for ZIF_EEZZ_TABLE~MT_DICTIONARY .
+  aliases MT_ROW
+    for ZIF_EEZZ_TABLE~MT_ROW .
+  aliases MT_TABLE
+    for ZIF_EEZZ_TABLE~MT_TABLE .
+  aliases MT_UPDATE
+    for ZIF_EEZZ_TABLE~MT_UPDATE .
+  aliases M_SELECTED
+    for ZIF_EEZZ_TABLE~M_SELECTED .
+  aliases M_TABLE_DDIC
+    for ZIF_EEZZ_TABLE~M_TABLE_DDIC .
+  aliases M_TABLE_NAME
+    for ZIF_EEZZ_TABLE~M_TABLE_NAME .
+  aliases M_VISIBLE_BLOCK
+    for ZIF_EEZZ_TABLE~M_VISIBLE_BLOCK .
+  aliases M_VISIBLE_ITEMS
+    for ZIF_EEZZ_TABLE~M_VISIBLE_ITEMS .
   aliases DO_NAVIGATE
     for ZIF_EEZZ_TABLE~DO_NAVIGATE .
+  aliases DO_SELECT_DATABASE
+    for ZIF_EEZZ_TABLE~DO_SELECT_DATABASE .
+  aliases DO_SORT
+    for ZIF_EEZZ_TABLE~DO_SORT .
   aliases GET_HASH
     for ZIF_EEZZ_TABLE~GET_HASH .
   aliases GET_SELECTED_OBJ
     for ZIF_EEZZ_TABLE~GET_SELECTED_OBJ .
+  aliases GET_STATUS
+    for ZIF_EEZZ_TABLE~GET_STATUS .
   aliases SEND_MESSAGE_PCP
     for ZIF_EEZZ_TABLE~SEND_MESSAGE_PCP .
+  aliases SET_STATUS
+    for ZIF_EEZZ_TABLE~SET_STATUS .
 
   methods CONSTRUCTOR
     importing
@@ -21,33 +49,11 @@ public section.
       !TABLE_NAME type STRING optional .
 protected section.
 
-  aliases MT_UPDATE
-    for ZIF_EEZZ_TABLE~MT_UPDATE .
-  aliases M_OFFSET
-    for ZIF_EEZZ_TABLE~M_OFFSET .
-  aliases M_SELECTED
-    for ZIF_EEZZ_TABLE~M_SELECTED .
-  aliases M_TABLE_DDIC
-    for ZIF_EEZZ_TABLE~M_TABLE_DDIC .
-  aliases M_TABLE_NAME
-    for ZIF_EEZZ_TABLE~M_TABLE_NAME .
-  aliases M_TOPDOWN
-    for ZIF_EEZZ_TABLE~M_TOPDOWN .
-  aliases M_VISIBLE_BLOCK
-    for ZIF_EEZZ_TABLE~M_VISIBLE_BLOCK .
-  aliases M_VISIBLE_ITEMS
-    for ZIF_EEZZ_TABLE~M_VISIBLE_ITEMS .
-  aliases DO_SELECT_DATABASE
-    for ZIF_EEZZ_TABLE~DO_SELECT_DATABASE .
-
   data M_RESORT type INT4 .
-  data M_LIMIT type INT4 .
-  data MT_DICTIONARY type ZTTY_DICTIONARY .
   data MT_COMPONENTS type CL_ABAP_STRUCTDESCR=>COMPONENT_TABLE .
-  data MT_ROW type ZTTY_EEZZ_ROW .
-  data MT_COLUMN_NAMES type ZTTY_EEZZ_ROW .
-  data MT_TABLE type ref to DATA .
 private section.
+
+  data M_STATUS type ZTTY_DICTIONARY .
     "az---data mt_sort type ztty_sort .
 ENDCLASS.
 
@@ -79,8 +85,10 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
       ( c_key = 'table_prev'     c_value = '-2' )
       ( c_key = 'table_current'  c_value =  '0' )
       ( c_key = 'innerHTML'      c_value = 'innerHTML')
-      ( c_key = 'table_path'     c_value =  'id000000' )
+      ( c_key = 'table-path'     c_value =  'id000000' )
       ( c_key = 'table_items'    c_value =  '20' )
+      ( c_key = 'tree_node'      c_value =  '' )
+      ( c_key = 'file_loader'    c_value =  '' )
     ).
 
     try.
@@ -92,6 +100,7 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
           mt_components  = x_structdescr->get_components( ).
         elseif table_name is not initial.
           " try to find DDIC table
+          m_table_name   = table_name.
           m_table_ddic   = table_name.
           x_structdescr ?= cl_abap_typedescr=>describe_by_name( p_name = m_table_ddic ).
           mt_components  = x_structdescr->get_components( ).
@@ -111,15 +120,24 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
       call function 'DDIF_FIELDINFO_GET' exporting tabname = lt_table_ddic tables dfies_tab = lt_table_fields.
     endif.
 
-    loop at mt_components into data(wac).
-      x_wa_column-c_field_name = wac-name.
+    field-symbols <fs_wac> type line of abap_component_tab.
+    loop at mt_components assigning <fs_wac>.
+      clear x_wa_column.
+      if <fs_wac>-name cp |_eezz_row_cell_|.
+        continue.
+      endif.
+
+      x_wa_column-c_field_name = <fs_wac>-name.
       x_wa_column-c_sort       = 0.
-      x_wa_column-c_value      = wac-name.
+      x_wa_column-c_value      = <fs_wac>-name.
       x_wa_column-c_position   = sy-tabix.
-      if line_exists( lt_table_fields[ fieldname = wac-name ] ).
-        x_wa_column-c_value = lt_table_fields[ fieldname = wac-name ]-fieldtext.
-        x_wa_column-c_outputlen = lt_table_fields[ fieldname = wac-name ]-outputlen.
-        x_wa_column-c_keyflag = lt_table_fields[ fieldname = wac-name ]-keyflag.
+
+      if line_exists( lt_table_fields[ fieldname = <fs_wac>-name ] ).
+        x_wa_column-c_value = lt_table_fields[ fieldname = <fs_wac>-name ]-fieldtext.
+        x_wa_column-c_outputlen = lt_table_fields[ fieldname = <fs_wac>-name ]-outputlen.
+        x_wa_column-c_keyflag   = lt_table_fields[ fieldname = <fs_wac>-name ]-keyflag.
+      elseif line_exists( x_tabledescr->key[ name = <fs_wac>-name ] ).
+        x_wa_column-c_keyflag   = abap_true.
       endif.
 
       append x_wa_column to mt_column_names.
@@ -285,15 +303,20 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
 
 
   method zif_eezz_table~do_sort.
+    field-symbols: <x_col_field> type zstr_cell.
+
+    loop at mt_column_names assigning <x_col_field>.
+      if sy-tabix = index and m_resort = 0.
+        continue.
+      else.
+        <x_col_field>-c_sort = 0.
+      endif.
+    endloop.
 
     if m_resort = 1.
       m_resort  = 0.
       zif_eezz_table~m_offset  = 0.
       zif_eezz_table~m_topdown = 1.
-
-      do lines( mt_column_names ) times.
-        mt_column_names[ sy-index ]-c_sort = 0.
-      enddo.
     endif.
 
     data(x_sort) = mt_column_names[ index ]-c_sort.
@@ -319,98 +342,106 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
 
 
   method ZIF_EEZZ_TABLE~GET_HASH.
-    rv_hash = zcl_eezz_helper=>create_hash_for_table_key( it_rows = ref #( mt_column_names ) iv_line = iv_line ).
+    rv_hash = zcl_eezz_helper=>create_hash_for_table_key( it_rows = ref #( mt_column_names ) iv_line = iv_line iv_path = iv_path ).
   endmethod.
 
 
-  METHOD zif_eezz_table~get_row.
-   DATA ls_cell  TYPE zstr_cell.
+  method zif_eezz_table~get_row.
+    data ls_cell  type zstr_cell.
 
-    DATA x_typedescr  TYPE REF TO cl_abap_tabledescr.
-    DATA x_linedescr  TYPE REF TO cl_abap_structdescr.
+    data x_typedescr  type ref to cl_abap_tabledescr.
+    data x_linedescr  type ref to cl_abap_structdescr.
 
-    DATA(x_index) = iv_index.
+    data(x_index) = iv_index.
     m_selected = 0.
 
-    FIELD-SYMBOLS <fs_table> TYPE STANDARD TABLE.
-    FIELD-SYMBOLS <fs_line>  TYPE any.
-    FIELD-SYMBOLS <fs_value> TYPE any.
+    field-symbols <fs_table> type standard table.
+    field-symbols <fs_line>  type any.
+    field-symbols <fs_value> type any.
 
     if mt_table is not bound.
       return. " should not appen.....
     endif.
 
-    ASSIGN mt_table->* TO <fs_table>.
-    CLEAR  mt_row.
+    assign mt_table->* to <fs_table>.
+    clear  mt_row.
 
 
     x_typedescr   ?= cl_abap_tabledescr=>describe_by_data( <fs_table> ).
     x_linedescr   ?= x_typedescr->get_table_line_type( ).
 
-    DATA(x_visible) = lines( <fs_table> ).
+    data(x_visible) = lines( <fs_table> ).
 
-    IF x_visible <= 0.
+    if x_visible <= 0.
       me->do_select_database( iv_offset = 0 ).
       x_visible = lines( <fs_table> ).
-    ENDIF.
+    endif.
 
-    IF m_table_name IS INITIAL.
+    if m_table_ddic is initial.
       x_visible = x_visible - zif_eezz_table~m_offset.
       x_index   = x_index   + zif_eezz_table~m_offset.
-    ENDIF.
+    endif.
 
-    IF mt_dictionary[ c_key = 'table_nav_type' ]-c_value CS 'block'.
+    if mt_dictionary[ c_key = 'table_nav_type' ]-c_value cs 'block'.
       x_visible = nmin( val1 = x_visible val2 = zif_eezz_table~m_visible_block ).
-    ELSE.
+    else.
       x_visible = nmin( val1 = x_visible val2 = zif_eezz_table~m_visible_items ).
-    ENDIF.
+    endif.
 
-    IF iv_index > x_visible.
-      RETURN.
-    ENDIF.
+    if iv_index > x_visible.
+      return.
+    endif.
 
-    IF zif_eezz_table~m_topdown < 0.
+    if zif_eezz_table~m_topdown < 0.
       x_index = x_index   - 1.
       x_index = x_visible - x_index.
-    ENDIF.
+    endif.
 
-    READ TABLE <fs_table> ASSIGNING <fs_line> INDEX x_index.
-    IF sy-subrc NE 0.
-      RETURN.
-    ENDIF.
+    read table <fs_table> assigning <fs_line> index x_index.
+    if sy-subrc ne 0.
+      return.
+    endif.
+
     m_selected = x_index.
-    DATA: x_genkey TYPE string.
-    GET REFERENCE OF mt_column_names INTO DATA(x_ref_row).
+    data: x_genkey type string.
+    get reference of mt_column_names into data(x_ref_row).
 
+    data(x_path)    = mt_dictionary[ c_key = |tree_node| ]-c_value.
+    x_genkey        = zcl_eezz_helper=>create_hash_for_table_key( iv_path = x_path it_rows = x_ref_row iv_line = <fs_line> iv_clear = abap_true ).
+    data(x_genpath) = zcl_eezz_helper=>create_hash_for_table_key( iv_path = x_path it_rows = x_ref_row iv_line = <fs_line> iv_clear = abap_true ).
+    data(x_locpath) = zcl_eezz_helper=>create_hash_for_table_key( it_rows = x_ref_row iv_line = <fs_line> iv_clear = abap_true ).
 
-    LOOP AT mt_column_names INTO DATA(x_wa_col).
-      data xField type string.
-      xField   = x_wa_col-c_field_name.
-      x_genkey = zcl_eezz_helper=>create_hash_for_table_key( it_rows = x_ref_row iv_line = <fs_line> iv_field = xField ).
+    assign component '_eezz_row_cell_' of structure <fs_line> to <fs_value>.
+    if sy-subrc = 0.
+      append value #( c_field_name = '_eezz_row_cell_' c_genkey = x_genkey c_value = <fs_value> ) to mt_row.
+    else.
+      append value #( c_field_name = '_eezz_row_cell_' c_genkey = x_genkey c_value = x_locpath  ) to mt_row.
+    endif.
 
-      ASSIGN COMPONENT x_wa_col-c_field_name OF STRUCTURE <fs_line> TO <fs_value>.
-      IF sy-subrc EQ 0.
+    loop at mt_column_names into data(x_wa_col).
+      data x_field type string.
+      x_field = x_wa_col-c_field_name.
+
+      assign component x_wa_col-c_field_name of structure <fs_line> to <fs_value>.
+      if sy-subrc eq 0.
         ls_cell-c_value      = <fs_value>.
-        ls_cell-c_field_name = x_wa_col-c_field_name.
-        ls_cell-c_genkey     = x_genkey.
+        ls_cell-c_field_name = x_field.
+        ls_cell-c_genkey     = |{ x_genkey }.{ x_field }|.
 
-        TRY.
-            IF x_linedescr->components[ name = x_wa_col-c_field_name ]-type_kind CO 'D'.
-              CALL FUNCTION 'CONVERT_DATE_TO_EXTERNAL' EXPORTING date_internal = <fs_value> IMPORTING date_external = ls_cell-c_value.
-            ENDIF.
-          CATCH cx_root.
+        try.
+            if x_linedescr->components[ name = x_wa_col-c_field_name ]-type_kind co 'D'.
+              call function 'CONVERT_DATE_TO_EXTERNAL' exporting date_internal = <fs_value> importing date_external = ls_cell-c_value.
+            endif.
+          catch cx_root.
             " keep value...
-        ENDTRY.
+        endtry.
 
-        APPEND ls_cell TO mt_row.
-      ENDIF.
-    ENDLOOP.
+        append ls_cell to mt_row.
+      endif.
+    endloop.
 
-    x_genkey = zcl_eezz_helper=>create_hash_for_table_key( it_rows = x_ref_row iv_line = <fs_line> ).
-    append value #( c_field_name = '_eezz_row_cell_' c_genkey = x_genkey ) to mt_row.
-
-    GET REFERENCE OF mt_row INTO rt_row.
-  ENDMETHOD.
+    get reference of mt_row into rt_row.
+  endmethod.
 
 
   method zif_eezz_table~get_selected_obj.
@@ -425,6 +456,11 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
 endmethod.
 
 
+  method ZIF_EEZZ_TABLE~GET_STATUS.
+    rt_status = ref #( m_status ).
+  endmethod.
+
+
   METHOD zif_eezz_table~get_update.
 
     get reference of mt_update into rt_update.
@@ -437,17 +473,39 @@ endmethod.
   endmethod.
 
 
+  method zif_eezz_table~on_download.
+    data x_update type ztty_update.
+
+    try.
+        if iv_message->get_message_type( ) = iv_message->co_message_type_text.
+          data(x_json)      = new zcl_eezz_json( iv_json = iv_message->get_text( ) ).
+          data(x_progress)  = x_json->get_value( |progress| ).
+          data(x_filesize)  = x_json->get_value( |file/size| ).
+          data(x_chunksize) = x_json->get_value( |chunkSize| ).
+          data(x_sequence)  = x_json->get_value( |file/sequence| ).
+
+          data(x_prog_seq)  = ( x_sequence + 1 ) * ( x_chunksize / x_filesize ) * 100.
+          x_prog_seq        = nmin( val1 = x_prog_seq  val2 = 100 ).
+          x_update = value #(
+            ( c_key = |{ x_progress }.innerHTML|   c_value = |{ x_prog_seq }%| )
+            ( c_key = |{ x_progress }.style.width| c_value = |{ x_prog_seq }%| )
+          ).
+
+          rv_update = zcl_eezz_json=>gen_response( ref #( x_update ) ).
+        endif.
+      catch cx_apc_error into data(x_exception).
+    endtry.
+  endmethod.
+
+
   method zif_eezz_table~send_message_pcp.
     try.
-        data(x_hash_name) = me->get_hash( iv_line ).
+        data(x_hash_name) = me->get_hash( iv_path = iv_path iv_line = iv_line  ).
         data(pcp_message) = cl_ac_message_type_pcp=>create( ).
 
         loop at it_fields->* into data(x_pcp).
-          pcp_message->set_field( i_name = x_pcp-name i_value = x_pcp-value ).
+          pcp_message->set_field( i_name = |{ x_hash_name }.{ x_pcp-name }|   i_value = |{ x_pcp-value }| ).
         endloop.
-
-        pcp_message->set_field( i_name = |eezz_event_key| i_value = iv_event    ).
-        pcp_message->set_field( i_name = |eezz_target|    i_value = x_hash_name ).
 
         cast if_amc_message_producer_pcp(
           cl_amc_channel_manager=>create_message_producer(
@@ -463,9 +521,7 @@ endmethod.
   endmethod.
 
 
-  method zif_eezz_table~set_range.
-    if zif_eezz_table~mt_range is initial.
-      zif_eezz_table~mt_range = iv_range.
-    endif.
+  method zif_eezz_table~set_status.
+    insert value #( c_key = iv_key c_value = iv_value c_status = iv_status ) into table m_status.
   endmethod.
 ENDCLASS.

@@ -14,9 +14,10 @@ document.onload = eezzConnect();
 
 /* ------------------------------------------------------------------------------- */
 /* ------------------------------------------------------------------------------- */
-class eezzAgent  { 
+var eezzAgent = { 
     // Evaluates the elements for the callback functions    
-    range ( rangeOperator, xElements ) {
+    // --------------------------------------------------------------------------- 
+    range : function ( rangeOperator, xElements ) {
         var xList  = [];
         var xMatch = null;
         var xLen   = xElements.length;
@@ -49,122 +50,304 @@ class eezzAgent  {
                 }
             }
         }
-    }
+    },
     
     // Script function to call user layout and animation
-    script ( aJsonStr ) {
-        var xJsonObj  = JSON.parse( aJsonStr );
+    // --------------------------------------------------------------------------- 
+    script: function( aJsonArg ) {
         var xContext  = null;
         var xTable    = null;
         var xElements = null;
+        var xTblBody  = null;
         var xKey;
         
-        // Defined methods could be specified with range. The range is added to the argument list
-        // The context is evaluated as the first parent element with a display attribute        
-        if ( xJsonObj.name ) {
-            xContext = document.getElementsByName( xJsonObj.name )[0];
-            xTable   = xContext;
-            while (xContext && xContext.style.display == "" && xContext.tagName != "BODY") {
-                xContext = xContext.parentElement;
+        // Find the target and setup the drawing context
+        if (aJsonArg.context.tagName == 'TABLE') {
+            xTable   = aJsonArg.context;
+            xTblBody = xTable.getElementsByTagName('TBODY'); 
+            aJsonArg['current'] = {
+                'header'  : xTable.getElementsByTagName('THEAD'),
+                'footer'  : xTable.getElementsByTagName('TFOOT'),
+                'context' : xTable.getElementsByTagName('TBODY'),
+            };
+            
+            xTable   = document.createElement('table');
+            xTable.innerHTML = aJsonArg.innerHTML;    
+            xTblBody = xTable.getElementsByTagName('TBODY');            
+            aJsonArg['updnew'] = { 
+                'header'  : xTable.getElementsByTagName('THEAD'),
+                'footer'  : xTable.getElementsByTagName('TFOOT'),
+                'context' : xTable.getElementsByTagName('TBODY'),
+            };
+            
+            if (aJsonArg.current.context.length == 0 ||
+                aJsonArg.updnew.context.length  == 0) {
+                return;
+            }
+            aJsonArg.current.context  = aJsonArg.current.context[0];
+            aJsonArg.current.elements = aJsonArg.current.context.getElementsByTagName('TD');
+            
+            aJsonArg.updnew.context   = aJsonArg.updnew.context[0];
+            aJsonArg.updnew.filter    = aJsonArg.updnew.context.getElementsByTagName('TD');
+            aJsonArg.updnew.elements  = aJsonArg.updnew.filter;
+            
+            // Update function could only called once for a given cycle
+            aJsonArg['update'] = (                     
+                function(aJsonContext) {  
+                    var aDone = false;
+                    
+                    return function() {
+                        if (aDone) {
+                            return;
+                        }
+                        
+                        var xParent = aJsonContext.current.context.parentNode;
+                        xParent.replaceChild(aJsonContext.updnew.context, aJsonContext.current.context);
+                        // aJsonContext.current.context.replaceWith(aJsonContext.updnew.context);                            
+
+                        if (aJsonContext.current.header.length  > 0 && aJsonContext.updnew.header.length  > 0) {
+                            xParent = aJsonContext.current.header[0].parentNode;
+                            xParent.replaceChild(aJsonContext.updnew.header[0], aJsonContext.current.header[0]);
+                            // aJsonContext.current.header[0].replaceWidth(aJsonContext.updnew.header[0]);
+                        }
+                        if (aJsonContext.current.footer.length  > 0 && aJsonContext.updnew.footer.length  > 0) {
+                            xParent = aJsonContext.current.footer[0].parentNode;
+                            xParent.replaceChild(aJsonContext.updnew.footer[0], aJsonContext.current.footer[0]);
+                            // aJsonContext.current.footer[0].replaceWith(aJsonContext.updnew.footer[0]);
+                        }
+                        aJsonContext.current.elements.length = 0;
+                        aDone = true;
+                    }
+                } 
+            ) (aJsonArg);
+        }
+        
+        // Find the scripting modules
+        for (xKey in aJsonArg.script) {
+            var xPos = xKey.search("\\[");
+            if (xPos < 0) {
+                continue;
             }
             
-            if (xTable) {
-                xElements = xTable.getElementsByTagName("TD");
-            }
-        }
-        
-        if (xContext == null || xElements == null) {
-            return;
-        }
-        
-        for (xKey in xJsonObj) {
-        	var xPos = xKey.search("\\[");
-        	if (xPos < 0) {
-        		continue;
-        	}
-        	
-        	var xCommand  = xKey.substr(0, xPos);
-        	var xCmdRange = xKey.substr(xPos);
-            var xCmdArgs  = xJsonObj[ xKey ];
-            	
+            var xCommand  = xKey.substr(0, xPos);
+            var xCmdRange = xKey.substr(xPos);
+            var xCmdArgs  = aJsonArg.script[ xKey ];
+                
             // evaluate range
-            var xElemList = this.range( xCmdRange, xElements );
-            var xJsonArgs = JSON.parse( xCmdArgs );
-            xJsonArgs["table"]    = xTable;
-            xJsonArgs["context"]  = xContext;
-            xJsonArgs["elements"] = xElemList;
-
-            if (xCommand == "eezzAgent.circle") {
-                this.circle( xJsonArgs );
+            // aJsonArg.updnew.elements = this.range( xCmdRange, aJsonArg.updnew.filter );
+            // Collect generators into 
+            // aJsonArg.script[xKey].generator = ....
+            // In runAnimation: Loop at aJsonArg.script and look for generators            
+            if (xCommand == "eezzAgent.animated_circle") {
+                var aGenerator = eezzAgent.animated_circle( aJsonArg, xCmdArgs );
+                eezzAgent.runAnimation( new Date().getTime(), aGenerator, xCmdArgs );
+                // this.circle( xJsonArgs );
             }
             else if (xCommand == "eezzAgent.move") {
                 // Move elements
             }
             else {
                 try {
-                	// var xxobj = eval("( myOwn.circle )");
-                    var xxobj     = window["myOwn"];
-                    xxobj.circle( xJsonArgs );
+                    // var xxobj = eval("( myOwn.circle )");
+                    // var xxobj     = window["myOwn"];
+                   //  xxobj.circle( xJsonArgs );
                } catch (e) {
                    alert(e.message);
                }
             }
         }
-    }
+    },
     
-    // layout function to put all elements on a circle
-    circle( xJsonArgs ) {
-    	var xStyle;            
-    	var xWidth  = parseInt( xJsonArgs.context.style.width  );
-    	var xHeight = parseInt( xJsonArgs.context.style.height );
-    	
-    	if (isNaN(xWidth)) {
-    		xStyle  = getComputedStyle( xJsonArgs.context );
-    	    xWidth  = parseInt( xStyle.getPropertyValue("width") );
-            xHeight = parseInt( xStyle.getPropertyValue("height") );
-    	}
-    	
-    	if (xJsonArgs.elements.length == 0) {
-    		return;
-    	}
-    	
-        var i;
-    	var xdPhi   = 2 * Math.PI / xJsonArgs.elements.length;
-        var xCx     = xWidth  / 2.0;
-        var xCy     = xHeight / 2.0;
-        var xMargin = 10;
+    // --------------------------------------------------------------------------- 
+    // Run animation
+    // The yield returns the timeout for the next call
+    // If the yield is a negative number, the method would request the animation
+    // frame.
+    // --------------------------------------------------------------------------- 
+    runAnimation: function( timestamp, aGenerator, xCmdArgs ) {
+        var xResult = aGenerator.next();
 
-        xWidth  = 0;
-        xHeight = 0;
-        for (i = 0; i < xJsonArgs.elements.length; i++) {
-        	var xStyleWidth;
-        	var xStyleHeight;
-        	
-        	xStyleWidth  = parseInt( xJsonArgs.elements[i].style.width );                	
-            xStyleHeight = parseInt( xJsonArgs.elements[i].style.height );
-            if (isNaN(xStyleWidth) || isNaN(xStyleHeight)) {
-            	continue;
-            }                    
-            xWidth  = Math.max( xWidth,  parseInt( xStyleWidth  ));
-            xHeight = Math.max( xHeight, parseInt( xStyleHeight ));
+        if (!xResult.done) {
+            var xTimer = parseInt(xResult.value);
+            if (isNaN(xTimer)) {
+                return;
+            }
+            
+            if (xTimer >= 0) {
+                window.setTimeout( function(){ eezzAgent.runAnimation(timestamp, aGenerator, xCmdArgs); }, xTimer );
+            }
+            else  {
+                requestAnimationFrame( function(timestamp){ runAnimation(timestamp, aGenerator, xCmdArgs); } );
+            }
         }
-
-        var xRx =  xCx - xWidth  / 2.0;
-        var xRy =  xCy - xHeight / 2.0;
+    },
+    
+    // --------------------------------------------------------------------------- 
+    // --------------------------------------------------------------------------- 
+    getSize: function( aElement ) {
+        var xWidth  = parseInt( aElement.style.width  );
+        var xHeight = parseInt( aElement.style.height );
+        var xStyle  = getComputedStyle( aElement );
         
-        for (i = 0; i < xJsonArgs.elements.length; i++) {                	
-        	xJsonArgs.elements[i].style.position = "absolute";                	
-            var posx = Math.floor( xCx + xRx * Math.cos(i * xdPhi) - xWidth /2.0 );
-            var posy = Math.floor( xCy + xRy * Math.sin(i * xdPhi) - xHeight/2.0 );
+        if (isNaN(xWidth)) {
+            xWidth  = parseInt( xStyle.getPropertyValue("width") );            
+        }        
 
-            xJsonArgs.elements[i].style.left = posx + "px";
-            xJsonArgs.elements[i].style.top  = posy + "px";
-        }    	
-    }
+        if (isNaN(xHeight)) {
+            xWidth  = parseInt( xStyle.getPropertyValue("height") );            
+        }
+        return {'width':xWidth, 'height': xHeight};
+    },
+    
+    // --------------------------------------------------------------------------- 
+    // --------------------------------------------------------------------------- 
+    getMaxSize: function( aElemList ) {
+        var i;
+        var xWidth  = 40;
+        var xHeigth = 40;
+        var xResult;
+        
+        for (i = 0; i < aElemList.length; i++) {
+            xResult = parseInt( aElemList[i].style.width );
+            if (!isNaN(xResult)) { 
+                xWidth = Math.max( xResult, xWidth );
+            }
+            
+            xResult = parseInt( aElemList[i].style.height );
+            if (!isNaN(xResult)) { 
+                xHeight = Math.max( xResult,  xHeigth );
+            }
+        }
+        return {'width':xWidth, 'height': xHeigth};
+    },
+
+    // --------------------------------------------------------------------------- 
+    // --------------------------------------------------------------------------- 
+    getGeometry: function( xCmdArgs, aContext, aElements ) {
+        if (aElements.length == 0) {
+            return {};
+        }
+        var xViewport = this.getSize( aContext );
+        var xElemSize = this.getMaxSize( aElements );
+        
+        var xGeometry = {
+            viewport: xViewport,
+            element : xElemSize,
+            deltaPhi: 2 * Math.PI / aElements.length,
+            center  : { 
+                x: xViewport.width / 2.0, 
+                y: xViewport.height/ 2.0 
+            },
+            radius  : { 
+                x: xViewport.width / 2.0 - xElemSize.width / 2.0,
+                y: xViewport.height/ 2.0 - xElemSize.height/ 2.0
+            },
+            offset  : {
+                x: - xElemSize.width / 2.0,
+                y: - xElemSize.height/ 2.0
+            }
+        }
+        return xGeometry;
+    },
+    
+    // --------------------------------------------------------------------------- 
+    // layout function to put all elements on a circle
+    // --------------------------------------------------------------------------- 
+    circle: function* ( xJsonArgs, xCmdArgs ) {
+        var i, j, k;
+
+        xJsonArgs.update();
+        var xElements = xJsonArgs.updnew.elements;
+        if (xElements.length > 0) {
+            var xGeometry = this.getGeometry(xCmdArgs, xJsonArgs.updnew.context, xElements);
+            for (i = 0; i < xElements.length; i++) {
+                for (j = xElements.length - i - 1, k = 0; j < xElements.length; j++, k++) {
+                    xElements[j].style.left = ( xGeometry.center.x + xGeometry.radius.x * Math.cos(k * xGeometry.deltaPhi) + xGeometry.offset.x ) + "px";
+                    xElements[j].style.top  = ( xGeometry.center.y + xGeometry.radius.y * Math.sin(k * xGeometry.deltaPhi) + xGeometry.offset.y ) + "px";
+                }
+            }
+        }
+    },
+    
+    // --------------------------------------------------------------------------- 
+    // layout function to put all elements on a circle
+    // --------------------------------------------------------------------------- 
+    animated_circle: function* ( xJsonArgs, xCmdArgs ) {
+        var i, j, k;        
+        
+        var xElements = xJsonArgs.current.elements;
+        if (xElements.length > 0) {
+            var xGeometry = this.getGeometry(xCmdArgs, xJsonArgs.current.context, xElements);
+                    
+            for (i = 0; i < xElements.length; i++) {
+                // xElements[i].parentElement.removeChild( xElements[i] );
+                for (j = i + 1, k = 0; j < xElements.length; j++, k++) {
+                    xElements[j].style.left = ( xGeometry.center.x + xGeometry.radius.x * Math.cos(k * xGeometry.deltaPhi) + xGeometry.offset.x ) + "px";
+                    xElements[j].style.top  = ( xGeometry.center.y + xGeometry.radius.y * Math.sin(k * xGeometry.deltaPhi) + xGeometry.offset.y ) + "px";
+                    xElements[j].style.transition = "all " + 0.1 + "s";   
+                } 
+                yield 100;
+            }
+        }
+        
+        xJsonArgs.update();
+        var xElements = xJsonArgs.updnew.elements;
+        if (xElements.length > 0) {
+            var xGeometry = this.getGeometry(xCmdArgs, xJsonArgs.updnew.context, xElements);
+            
+            // Prepare 
+            for (i = 0; i < xElements.length; i++) {
+                xElements[i].style.position = "absolute";                    
+                xElements[i].style.left = ( xGeometry.center.x + xGeometry.offset.x + xGeometry.radius.x) + "px";
+                xElements[i].style.top  = ( xGeometry.center.y + xGeometry.offset.y ) + "px";
+                xElements[i].style.transition = "all " + 0.1 + "s";   
+                xElements[i].style.physics    = { 
+                        "velocity": (2 * Math.PI * xGeometry.radius.x)/1000,  
+                        "phi"     : 0,
+                        "delay"   : i * 1000 / xElements.length }
+            }
+            yield 0;
+            
+            // Set position and wait for animation
+            for (i = 0; i < xElements.length; i++) {
+                for (j = xElements.length - i - 1, k = 0; j < xElements.length; j++, k++) {
+                    xElements[j].style.left = ( xGeometry.center.x + xGeometry.radius.x * Math.cos(k * xGeometry.deltaPhi) + xGeometry.offset.x ) + "px";
+                    xElements[j].style.top  = ( xGeometry.center.y + (xGeometry.radius.y-20) * Math.sin(k * xGeometry.deltaPhi) + xGeometry.offset.y ) + "px";
+                }    
+                yield 100;
+            }
+        }
+        else {
+            return;
+        }
+        
+        var xBackgrd = "";
+        try {
+            var xGeometry = this.getGeometry(xCmdArgs, xJsonArgs.updnew.context, xElements);
+            var aCanvas   = document.createElement("canvas");;
+            aCanvas.width  = xGeometry.center.x * 2;
+            aCanvas.height = xGeometry.center.x * 2;
+            
+            var aCtx = aCanvas.getContext('2d');
+            aCtx.arc(xGeometry.center.x, xGeometry.center.y, Math.min(xGeometry.radius.x, xGeometry.radius.y) + 20, 0, 2 * Math.PI);
+            aCtx.lineWidth = 5;
+            // aCtx.fillStyle = 'green';
+            // aCtx.fill();
+            aCtx.strokeStyle = '#003300';
+            aCtx.stroke();
+            xBackgrd = "url('"  + aCanvas.toDataURL() + "') no-repeat top left";
+            xJsonArgs.updnew.context.style.background = xBackgrd;
+        }
+        catch( xEx ) {
+            xBackgrd = xEx.message;
+        }
+    },
 }
 
+/* ------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------- */
 function eezzConnect() {
-	eezzWebSocket   = new WebSocket(gSocketAddr);
+    eezzWebSocket   = new WebSocket(gSocketAddr);
     
     eezzWebSocket.onopen = function() { 
         var aParser   = document.createElement('a');
@@ -180,13 +363,13 @@ function eezzConnect() {
     /* Error handling */
     /* --------------------------------- */
     eezzWebSocket.onerror = function(aError) {
-    	xEezzStatus = document.getElementById( "eezzConnection" );
+        xEezzStatus = document.getElementById( "eezzConnection" );
         if (xEezzStatus != null) {
-        	xEezzStatus.style.display = "none";        	
+            xEezzStatus.style.display = "none";            
         }
         xEezzStatus = document.getElementById( "eezzConnectBrk" );
         if (xEezzStatus != null) {
-        	xEezzStatus.style.display = "inline";
+            xEezzStatus.style.display = "inline";
         }
 
     }
@@ -195,7 +378,7 @@ function eezzConnect() {
     /* - updateValues transfer values within the document        */
     /* - update inserts values calculated by application         */
     /* --------------------------------------------------------- */
-    eezzWebSocket.onmessage = function(aEvent) {    	
+    eezzWebSocket.onmessage = function(aEvent) {        
         var aJson = eval("(" + aEvent.data + ")");              
 
         var xDestination;
@@ -218,32 +401,61 @@ function eezzConnect() {
             xSource       = xValElement.split('.')
             
             if (xDestination.length != 2) {
-            	continue;
+                continue;
             }
             
             xDstElement   = document.getElementsByName( xDestination[0] );
             xDstAttribute = xDestination[1];
             
             if (xDstElement.length == 0) {
-            	continue;
+                continue;
             }
             
             if (xSource.length != 2) {
-            	continue;
+                continue;
             }
             xSrcElement   = document.getElementsByName(xSource[0]);
             xSrcAttribute = xSource[1];
             
             if (xSrcElement.length == 0) {
-            	continue;
+                continue;
             }
             
             xValue = xSrcElement[0].getAttribute(xSrcAttribute);
             if (xValue != undefined) {
-            	xDstElement[0].setAttribute(xDstAttribute, xValue);
+                xDstElement[0].setAttribute(xDstAttribute, xValue);
             }
         }
 
+        /* update fragments: insert values */
+        for (xKeyElement in aJson.update) {
+            if (xKeyElement.endsWith('.script')) {
+                xDestination  = xKeyElement.split('.');
+                var xKeyHtml  = xDestination[0] + '.innerHTML';
+                var xJsonArg  = {};
+                
+                xDstElement   = document.getElementsByName( xDestination[0] );
+                if (xDstElement.length == 0) {
+                    break;
+                }
+                
+                xJsonScript = JSON.parse( decodeURIComponent( aJson.update[xKeyElement] ));
+                xJsonArg    = {
+                    'name'   : xDestination[0], 
+                    'context': xDstElement[0], 
+                    'script' : xJsonScript  };
+                
+                delete aJson.update[xKeyElement];
+                
+                if (aJson.update[xKeyHtml]) {
+                    xJsonArg['innerHTML'] = decodeURIComponent( decodeURIComponent( aJson.update[xKeyHtml] ));                    
+                    delete aJson.update[xKeyHtml];
+                }
+                eezzAgent.script( xJsonArg );   
+                break;
+            }
+        }                
+        
         /* update fragments: insert values */
         for (xKeyElement in aJson.update) {
             xValElement   = decodeURIComponent( aJson.update[xKeyElement] );
@@ -251,47 +463,90 @@ function eezzConnect() {
             xDestination  = xKeyElement.split(".");
             
             if (xDestination.length < 2) {
-            	continue;
+                continue;
             }
             xDstElement   = document.getElementsByName( xDestination[0] );
             xDstAttribute = xDestination[1];
             
             if (xDstElement.length == 0) {
-            	continue;
+                continue;
             }
             
             if (xDstAttribute == 'style') {
-            	if (xDestination.length > 2) {
-            		xDstElement[0].style[xDestination[2]] = xValElement;
-            	}
-            	continue;
+                if (xDestination.length > 2) {
+                    xDstElement[0].style[xDestination[2]] = xValElement;
+                }
+                continue;
             }
             
             if (xDstAttribute == 'data-eezz-script') {
-            	try {
-            		eezzAgent.script( xValElement );            	
-            	} catch (aEx) {
-            	}                
-            	continue;
+                try {
+                    eezzAgent.script( xValElement );                
+                } catch (aEx) {
+                }                
+                continue;
             }
 
-            if (xDstElement[0].getAttribute('class') == 'eezzTreeNode') {
-            	if (xDestination.length < 3) {
-            		continue;
-            	}
-            	eezzTreeInsert(xDestination[2], xValElement);
-            	break;
-            }
-            else {
-                if (xDstAttribute == 'innerHTML') {
-                	xDstElement[0].innerHTML = xValElement;
+            if (xKeyElement.indexOf('innerHTML') >= 0) {
+                var xClassAttr = xDstElement[0].getAttribute('class');
+                if (xClassAttr != null && 
+                    xClassAttr.indexOf('eezzTreeNode') >= 0 &&
+                    xDstElement[0].nodeName == 'TR') {
+                    eezzTreeInsert(xDestination[0], xValElement);
                 }
                 else {
-                	xDstElement[0].setAttribute(xDstAttribute, xValElement);
+                    xDstElement[0].innerHTML = xValElement;
                 }
             }
+            else {
+                xDstElement[0].setAttribute(xDstAttribute, xValElement);
+            }
         }    
-    	
+        
+        /* async events with the following format for key:value pairs in JSON format  
+         * sha1-hash( <path>/<name> ).<event-name> : <value>
+         */
+        var xJsonAsyncStr;
+        var xJsonAsync;
+        var xDestAsync;
+        var xTreeElem;
+               
+        for (xKeyElement in aJson.async) {        	
+            try {
+	            xValElement   = decodeURIComponent( aJson.async[xKeyElement] );	            
+	            xDestination  = xKeyElement.split(".");
+	            
+	            xDstElement   = document.getElementsByName( xDestination[0] )[0];
+	            xTreeElem     = xDstElement
+	            if (xDstElement.tagName == 'TD') {
+	            	xTreeElem = xDstElement.parentNode;
+	            }
+	            xJsonAsyncStr = xTreeElem.getAttribute('data-eezz-async');
+	            xJsonAsyncStr = xJsonAsyncStr.replace(/'/g, '"');
+	            xJsonAsync    = JSON.parse( xJsonAsyncStr );
+	            xJsonAsync    = xJsonAsync[ xDestination.slice(1).join('.') ];
+	            
+	            for (xEventKey in xJsonAsync) {
+	            	xDestination = xEventKey.split('.')
+	            	if (xDestination[0] != 'this') {
+	            		xDstElement = xDstElement.getElementsByName( xDestination[0] )[0];
+	            	}
+	            	
+	            	if (xDestination[1] == 'innerHTML') {
+	            		xDstElement.innerHTML = xJsonAsync[ xEventKey ];
+	            	}
+	            	else if (xDestination[1] == 'style') {
+	            		xDstElement.style[ xDestination[2] ] = xJsonAsync[ xEventKey ];
+	            	}
+	            	else {
+	            		xDstElement.setAttibute( xDestination[1] ) = xJsonAsync[ xEventKey ];
+	            	}
+	            }
+            } catch (aException) {
+            	continue;
+            }
+        }        
+        
         /* Start reading files */
         if (aJson.files) {
             readFiles(aJson);
@@ -299,7 +554,7 @@ function eezzConnect() {
 
         xEezzStatus   = document.getElementById( "eezzConnected" );
         if (xEezzStatus != null) {
-        	xEezzStatus.innerHTML = "connected";
+            xEezzStatus.innerHTML = "connected";
         }
 
     }     
@@ -308,78 +563,84 @@ function eezzConnect() {
 /* --------------------------------- */
 /* --------------------------------- */
 function eezzTreeExCo(aElement) {
-	var xExpanded = aElement.getAttribute('eezz-tree-expanded');	
-	if (xExpanded == 'expanded') {
-		var aTreeNodeHdr = aElement.getElementsByTagName('thead')
-		for (i = 0; i < aTreeNodeHdr.length; i++) {
-			aElement.innerHTML = aTreeNodeHdr[i].innerHTML;
-			break;
-		}
-		aElement.setAttribute('eezz-tree-expanded', 'collapsed');
-		return false;
-	}
-	else if (xExpanded == undefined) {
-		aElement.setAttribute('eezz-tree-expanded', 'collapsed');
-		return true;
-	}
-	else if (xExpanded == 'expanded') {
-		aElement.setAttribute('eezz-tree-expanded', 'collapsed');
-		return true;
-	}
-	else {
-		return true;
-	}
+    var xExpanded;    
+    var xTreeHead = aElement;
+    var xTreeBody;
+    var xTreeNode = aElement;
+    var Attribute;
+    
+    if (xTreeNode.className.indexOf('eezzTreeNode') < 0) {
+    	return true;
+    }
+    xTreeHead = xTreeNode.getElementsByClassName('eezzTreeHead');
+    if (xTreeHead.length == 0) {
+    	return true;
+    }
+    xTreeBody = xTreeHead[0].getElementsByTagName('TR')[0];
+	xTreeNode.innerHTML = xTreeBody.innerHTML;
+
+    var  xFlipElements;
+    var  xInx;
+    xFlipElements = aElement.getElementsByClassName('eezzClosed');
+    for (xInx = 0; xInx < xFlipElements.length; xInx++) {
+    	xFlipElements[xInx].style.display = 'initial';
+    } 
+    xFlipElements = aElement.getElementsByClassName('eezzOpend');
+    for (xInx = 0; xInx < xFlipElements.length; xInx++) {
+    	xFlipElements[xInx].style.display = 'none';
+    } 
+    return false;
 }
 
 /* --------------------------------- */
 /* --------------------------------- */
 function eezzTreeInsert(aElementId, aNodeElement) {
-	// Find tree node by id tag element tr
-	var aElement     = document.getElementById(aElementId)
-	var xExpanded    = aElement.getAttribute('eezz-tree-expanded');	
-
-	if (xExpanded == 'expanded') {
-		eezzTreeExCo(aElement);
-	}
-	if (aElementId == 'id000000') {
-		aElement.innerHTML = aNodeElement;
-		return;
-	}
-	// Save the header
-	var aTreeNodeHdr = aElement.innerHTML;
-	
-	// The new element should take the entire place
-	var aCols = aElement.getElementsByTagName('td').length.toString()
-	// Clear element for new entry
-	aElement.innerHTML = '';
-        
-
-	// Create a new entry
-	var xTd         = document.createElement('td');
-	var xTableHead  = document.createElement('table');
-	var xTableBody  = document.createElement('table');
+    // Find tree node by id tag element tr
+    var aElement     = document.getElementsByName(aElementId)[0];
+    var xExpanded    = aElement.getAttribute('eezz-tree-expanded');    
     
-	xTableBody.setAttribute('class', 'eezzTreeNode');
-	
-    var xTHead  = document.createElement('thead');
-    var xTBody  = document.createElement('tbody');
-
-    xTBody.setAttribute('class', 'eezzTreeNode');
-    xTHead.setAttribute('class', 'eezzTreeNode');
-    xTableHead.appendChild(xTHead);
-    xTableBody.appendChild(xTBody);
-
-    xTd.setAttribute('class', 'eezzTreeNode');
+    if (xExpanded == 'expanded') {
+        eezzTreeExCo(aElement);
+    }
+    if (aElement.nodeName != 'TR') {
+        return;
+    }
+    
+    // The new element should take the entire place
+    var aCols = aElement.getElementsByTagName('td').length.toString()
+    // Save the header and clear element for new entry
+    var aTreeNodeHdr = aElement.innerHTML;
+    var aBodyInx     = aNodeElement.indexOf('<tbody'); 
+    aElement.innerHTML = '';
+        
+    // Create a new entry
+    var xTd         = document.createElement('td');
+    var xTableHead  = document.createElement('table');
+    var xTableBody  = document.createElement('table');
+            
+    xTableHead.innerHTML = aTreeNodeHdr;
+    xTableBody.innerHTML = aNodeElement.substr(aBodyInx);
+    
     xTd.setAttribute('colspan', aCols);
     xTd.appendChild(xTableHead);
-    xTd.appendChild(xTableBody);
-    
-    
-    xTHead.innerHTML = aTreeNodeHdr
-    xTBody.innerHTML = aNodeElement
-        
+    xTd.appendChild(xTableBody);                
     aElement.appendChild(xTd);
+    
+    xTableHead.setAttribute('class', 'eezzTreeHead');
+    xTableBody.setAttribute('class', 'eezzTreeBody');
     aElement.setAttribute('eezz-tree-expanded', 'expanded');
+    xTableHead.setAttribute('eezz-tree-expanded', 'expanded');
+    
+    var  xFlipElements;
+    var  xInx;
+    xFlipElements = xTableHead.getElementsByClassName('eezzClosed');
+    for (xInx = 0; xInx < xFlipElements.length; xInx++) {
+    	xFlipElements[xInx].style.display = 'none';
+    } 
+    xFlipElements = xTableHead.getElementsByClassName('eezzOpend');
+    for (xInx = 0; xInx < xFlipElements.length; xInx++) {
+    	xFlipElements[xInx].style.display = 'initial';
+    } 
 }
 
 /* Read one file in chunks           */
@@ -415,7 +676,7 @@ function readOneFile(aHeader, aFile) {
             
             aReader.onload   = (
                 function(xOneJson) {
-                    var xResponse = JSON.stringify(xOneJson);                                
+                    var xResponse = JSON.stringify(xOneJson); 
                     return function(e) {
                         eezzWebSocket.send(xResponse);
                         eezzWebSocket.send(e.target.result);
@@ -434,118 +695,241 @@ function readFiles(aHeader) {
     asyncFileCnt      = 0;
     
     for (var i = 0; i < aHeader["files"].length; i++) {
-	    aElem       = document.getElementsByName(aHeader["files"][i]["source"])[0];
-	        
-	    for (var j = 0; j < aElem.files.length; j++) {
-	        var xFile   = aElem.files[j];
-	        var xReader = new FileReader();
-	        
-	        var xJson   = {
-	            "file": { 
-	                "chunkSize": xFile.size,
-	                "size"     : xFile.size, 
-	                "name"     : xFile.name,
-	                "source"   : aHeader["files"][i]["source"],
-	                "type"     : aHeader["files"][i]["type"]
-	            }, 
-	            "reader"   :  aHeader.reader,
-	            "update"   :  aHeader["files"][i]["update"],
-	            "progress" :  aHeader["files"][i]["progress"],
-	            "chunkSize":  aHeader.chunkSize
-	            };
-	       
-	        readOneFile(xJson, xFile);
-	    }
+        aElem       = document.getElementsByName(aHeader["files"][i]["source"])[0];
+            
+        for (var j = 0; j < aElem.files.length; j++) {
+            var xFile   = aElem.files[j];
+            var xReader = new FileReader();
+            
+            var xJson   = {
+                "file": { 
+                	"transfer" : 0,                
+                    "chunkSize": xFile.size,
+                    "size"     : xFile.size, 
+                    "name"     : xFile.name,
+                    "source"   : aHeader["files"][i]["source"],
+                    "type"     : aHeader["files"][i]["type"]
+                }, 
+                "reader"   :  aHeader.reader,
+                "update"   :  aHeader["files"][i]["update"],
+                "progress" :  aHeader["files"][i]["progress"],
+                "chunkSize":  aHeader.chunkSize
+                };
+           
+            readOneFile(xJson, xFile);
+        }
     }
 }
 
 /* Process easy click events         */
 /* --------------------------------- */
 function easyClick(aEvent, aElement) {
-    var aJStr  = decodeURIComponent(aElement.getAttribute("data-eezz-event"));
-    var aJson  = eval("(" + aJStr + ")"); 
-    var aDest;
-    var aElem;
-    var aPost  = false;
-    var aValue;
-    var aChunkSize = 65536*2;
+	var aJStr  = decodeURIComponent(aElement.getAttribute("data-eezz-event"));
+	var aJson  = eval("(" + aJStr + ")"); 
+	var aDest;
+	var aElem;
+	var aPost  = false;
+	var aValue;
+	var aChunkSize = 65536*2;
 
-    aJson['name'] = aElement['name'];
-        
-    if (aJson.files) {
-        aJson['return'] = {code:0, values:[]};
-        aJson.chunkSize = aChunkSize;
-        aPost = true;
+	aJson['name'] = aElement['name'];
+
+	if (aJson.files) {
+		aJson['return'] = {code:0, values:[]};
+		aJson.chunkSize = aChunkSize;
+		aPost = true;
+	}
+	
+	/* handle tree node events */
+	var aTreeElem   = aElement;
+	var xNodeElem   = aElement;
+    var xTreePath   = '';
+    var xCallPath   = '';
+    var xIsTreeNode = false;
+    
+	// Check for tree node for element
+    if (xNodeElem.tagName == 'TD' || xNodeElem.tagName == 'TR') {
+		for (xNodeElem = aTreeElem; xNodeElem != null; xNodeElem = xNodeElem.parentNode) {
+	    	if (xNodeElem.className.indexOf('eezzTreeNode') >= 0) {
+	        	aTreeElem   = xNodeElem;
+	        	xIsTreeNode = true;
+	        	break;
+	    	}
+	    	if (xNodeElem.className.indexOf('eezzTreeNodeRoot') >= 0) {
+	    		break;
+	    	}
+		}
     }
-
-    /* Generate a callback request */
-    if (aJson.callback) {    
-        aPost = true;
-	    for (xMethod in aJson.callback) {
-	        for (xArg in aJson.callback[xMethod]) {
-	            aDest = aJson.callback[xMethod][xArg];
-	            
-	            if (typeof aDest === 'string' && aDest.indexOf(".") >= 0) {
-	                aDest = aJson.callback[xMethod][xArg].split("."); 
-	            
-	                if (aDest[0] == "this") {
-	                	aElem = aElement
-	                }
-	                else {
-	                    aElem  = document.getElementsByName(aDest[0])[0];	                	
-	                }
-	                
-	                aValue = aElem[aDest[1]]
-	                if (aValue == undefined) {
-	                	aValue = aElem.getAttribute(aDest[1]);
-	                }
-	                aJson.callback[xMethod][xArg] = aValue;	                
-	            }
-	            else {
-	                aJson.callback[xMethod][xArg] = aDest;
-	            }                        
-	        }
-	    }
+    
+    if (xIsTreeNode) {
+		if (aEvent.stopPropagation) {
+			aEvent.stopPropagation();
+		}
+		else {
+			aEvent.cancelBubble();
+		}
     }
-
-    /* transfer a value from one element to another                */
-    /* eezz-agent sets updateValue, if it can't find this property */
-    if (aJson.updateValue) {
-    	for (xSource in aJson.updateValue) {
-    		aSrc     = xSource.split(".")
-    		aSrcElem = document.getElementsByName( aSrc[0] );
+    
+    if (xIsTreeNode) {
+    	var xPathArr = [];
+    	var xCallArr = [];
+    	
+		for (xNodeElem = aTreeElem; xNodeElem != null; xNodeElem = xNodeElem.parentNode) {
+			if (xNodeElem.className.indexOf('eezzTree') >= 0) {
+				if (xNodeElem.getAttribute('data-eezz-path')) {
+					if (xNodeElem.tagName == 'TR') {
+						xCallArr.unshift( xNodeElem.getAttribute('data-eezz-path') );
+					}
+					xPathArr.unshift( xNodeElem.getAttribute('data-eezz-path') );
+				}
+			}
+			if (xNodeElem.className.indexOf('eezzTreeNodeRoot') >= 0) {
+				break;
+			}
+		}
+		xTreePath = '/' + xPathArr.join('/');
+		xCallPath = '/' + xCallArr.join('/')
+     }
     		
-    		if (aSrcElem.length > 0) {
-    			aValue  = aSrcElem[0].getAttribute( aSrc[1] );
-    		}
-    	}
-    }
+	/* Generate a callback request and expand "this" variable */
+	var xSource;
+	var xSourceElem;
+	var xDestElem;
+	var xSplitArgs;
+	var xValue;
+	var xJsnAssign;
+	var xNewUpdate = {};
+    var xSrcValue = '';
     
-    if (aJson.update) {
-    	aPost = true;
-    }
-    
-    if (aElement.getAttribute('class') == 'eezzTreeLeaf') {
-    	if (aEvent.stopPropagation) {
-    		aEvent.stopPropagation();
-    	}
-    	else {
-    		aEvent.cancelBubble();
-    	}    	
-    }
-    
-    if (aElement.getAttribute('class') == 'eezzTreeNode') {
-    	aPost = eezzTreeExCo(aElement);
-    	if (aEvent.stopPropagation) {
-    		aEvent.stopPropagation();
-    	}
-    	else {
-    		aEvent.cancelBubble();
-    	}
-    }
-    
-    if (aPost == true) {
-        var aResponse = JSON.stringify(aJson);
-        eezzWebSocket.send(aResponse);
-    } 
+	if (aJson.update) {        
+		for (xUpdDest in aJson.update) {
+			try {	
+				var aNewKey  = xUpdDest;
+				var aNewVal  = aJson.update[ xUpdDest ];
+				
+				if (aNewKey.indexOf('this.innerHTML') >= 0 && xIsTreeNode) {
+					if (!eezzTreeExCo(aTreeElem)) {
+						return;
+					}
+					xSplitArgs = aNewKey.split('.');
+					aNewKey    = aTreeElem.getAttribute('name') + '.' + xSplitArgs[1] + '.' + xTreePath;					
+				}
+				else if (aNewKey.indexOf('this.') >= 0) {
+					xSplitArgs = aNewKey.split('.');
+					aNewKey    = aTreeElem.getAttribute('name') + '.' + xSplitArgs[1];
+				}				
+				
+				if (aNewVal.indexOf('this.data-eezz-path') >= 0) {
+					aNewVal   = xTreePath;
+				}
+				else if (aNewVal.indexOf('this.') >= 0) {
+					xSplitArgs = aNewVal.split('.');
+					aNewVal    = aTreeElem.getAttribute('name') + '.' + xSplitArgs[1];
+				}
+				xNewUpdate[ aNewKey ] = aNewVal;				
+				
+				if (aNewVal.indexOf('.') > 0) {
+					xSplitArgs    = aNewVal.split('.');
+					xSourceElem   = document.getElementsByName( xSplitArgs[0] )[0];
+		            xStrAction    = xSourceElem.getAttribute('data-eezz-action');
+		            xStrAction    = xStrAction.replace(/'/g, '"');					
+		            xJsnAction    = JSON.parse( xStrAction );
+		            
+					if (xJsnAction['eezzAgent.assign']) {
+						xJsnAction = xJsnAction['eezzAgent.assign'];
+						if (!aJson.callback) {
+							aJson.callback = {};
+						}
+				        for (aNewKey in xJsnAction) {
+							aJson.callback[ aNewKey + '.' + xSplitArgs[0] ] = xJsnAction[aNewKey];
+				        }	   	
+					}
+				}
+			} catch (aException) {
+				continue;
+			}			
+		}
+		aJson.update = xNewUpdate; 
+		aPost        = true;
+	}
+	
+	// Check if parameter are to be transferred directly
+	for (xUpdDest in aJson.updateValue) {
+		try {
+			var aNewKey  = xUpdDest;
+			var aNewVal  = aJson.updateValue[ xUpdDest ];
+
+			if (aNewKey.indexOf('.') < 0) {
+				continue
+			}	
+			
+			if (aNewKey.indexOf('this.') >= 0) {
+				xSplitArgs = aNewKey.split('.');
+				aNewKey    = aTreeElem.getAttribute('name') + '.' + xSplitArgs[1];
+			}
+
+			if (aNewVal.indexOf('.') < 0) {
+				xSrcValue = aNewVal;
+			}
+			else if (aNewVal.indexOf('this.data-eezz-path') >= 0) {
+				xSrcValue   = xTreePath;
+			}
+			else if (aNewVal.indexOf('this.') >= 0) {
+				xSplitArgs = aNewVal.split('.');
+				aNewVal    = aTreeElem.getAttribute('name') + '.' + xSplitArgs[1];
+				xSrcValue  = aTreeElem.getAttribute( xSplitArgs[1] );
+			}
+			else {
+				xSplitArgs = aNewVal.split('.');
+				xSrcValue  = document.getElementsByName( xSplitArgs[0] )[0].getAttribute( xSplitArgs[1] );
+			}
+            
+			if (!xSrcValue) {
+            	continue;
+            }
+            
+			if (aNewKey.indexOf('.innerHTML') >= 0) {
+				xSplitArgs = aNewKey.split('.');					
+				document.getElementsByName( xSplitArgs[0] )[0].innerHTML = xSrcValue;
+			}
+			else {
+				xSplitArgs = aNewKey.split('.');					
+				document.getElementsByName( xSplitArgs[0] )[0].setAttribute( xSplitArgs[1], xSrcValue );					
+			}		
+			xNewUpdate[ aNewKey ] = aNewVal;
+		} catch (aException) {
+			continue;
+		}
+	} 
+
+	if (aJson.callback) {    
+		aPost = true;
+		for (xMethod in aJson.callback) {
+			for (xArg in aJson.callback[xMethod]) {
+				xSource     = aJson.callback[xMethod][xArg];
+				xSplitArgs  = xSource.split('.');
+				xSourceElem = aTreeElem;
+				
+				try {
+					if (xSource.indexOf('this.data-eezz-path') >= 0) {
+						aJson.callback[xMethod][xArg] = xCallPath;
+					}					
+					else if (xSource.indexOf('this.') >= 0) {
+					    aJson.callback[xMethod][xArg] = xSourceElem.getAttribute( xSplitArgs[1] );
+					}
+					else if (xSplitArgs.length > 1) {
+						xSourceElem  = document.getElementsByName( xSplitArgs[0] )[0];
+					    aJson.callback[xMethod][xArg] = xSourceElem.getAttribute( xSplitArgs[1] );						
+					}
+				} catch (aException) {
+					continue;
+				}
+			}
+		}
+	}
+
+	if (aPost == true) {
+		var aResponse = JSON.stringify(aJson);
+		eezzWebSocket.send(aResponse);
+	}
 }

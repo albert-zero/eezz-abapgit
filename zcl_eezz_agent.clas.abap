@@ -23,7 +23,7 @@ public section.
   protected section.
 private section.
 
-  class-data M_MESSAGE_MGR type ref to IF_APC_WSP_MESSAGE_MANAGER .
+  data M_FILE_LOADER type ref to ZIF_EEZZ_TABLE .
   class-data M_TBL_EVENT type ZTTY_EVENTS .
   data M_MESSAGE_DB type ZSTR_SYMBOLS .
   class-data M_TBL_GLOBAL type ZTTY_SYMBOLS .
@@ -45,12 +45,13 @@ private section.
   methods XML_NODE2STRING
     importing
       !IO_NODE type ref to IF_IXML_NODE
+      !IV_INNERHTML type ABAP_BOOL default ABAP_TRUE
     returning
       value(RV_STRING) type STRING .
   methods HANDLE_REQUEST
     importing
       !IV_OSTREAM type ref to IF_IXML_OSTREAM
-      !IV_STR_JSON type STRING .
+      !IV_MESSAGE type ref to IF_APC_WSP_MESSAGE .
   methods RENDER_NODE
     importing
       !IT_UPDATE type ref to ZTTY_UPDATE
@@ -141,24 +142,25 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
 
     data: x_node_table type ref to zcl_eezz_table_node,
           x_globals    type ref to ztty_symbols.
-    data  x_eezz_table  type ref to zif_eezz_table.
+    data  x_eezz_table type ref to zif_eezz_table.
 
     if is_eezz_table is bound.
       x_eezz_table ?= is_eezz_table.
-    else.
+    elseif is_entry-c_object is bound.
       x_eezz_table ?= is_entry-c_object.
+    else.
+      x_eezz_table  = new zcl_eezz_table( ).
     endif.
 
-
     get reference of m_tbl_global into x_globals.
+    data(x_template) = is_entry-c_templ_node->clone( ).
     create object x_node_table
       exporting
-        io_node     = is_entry-c_templ_node
+        io_node     = x_template
         it_globals  = x_globals
         io_eezz_tbl = x_eezz_table.
 
     ro_new_node = x_node_table->get( ).
-
   endmethod.
 
 
@@ -179,33 +181,69 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
           x_seconds       type tzntstmpl,
           x_msg           type zstr_message,
           x_ref_obj       type ref to zif_eezz_table,
+          x_json_update   type ref to ztty_eezz_json,
           x_data          type ref to data.
 
-    data(x_json) = new zcl_eezz_json( iv_json = iv_str_json ).
-    data(x_json_update)    = x_json->get( iv_path = 'update' ).
-    data(x_json_callback)  = x_json->get( iv_path = 'callback' ).
+    try.
+        if iv_message->get_message_type( ) = iv_message->co_message_type_binary.
+          if m_file_loader is bound.
+            data(x_progress) = m_file_loader->on_download( iv_message = iv_message ).
+            iv_ostream->write_string( x_progress ).
+            return.
+          endif.
+        else.
+          data(x_str_json)      = iv_message->get_text( ).
+          data(x_json)          = new zcl_eezz_json( iv_json = x_str_json ).
+          data(x_json_callback) = x_json->get( iv_path = 'callback' ).
+          data(x_prep_files)    = x_json->get( |files| ).
+          data(x_load_files)    = x_json->get( |file|  ).
+          x_json_update         = x_json->get( iv_path = 'update' ).
 
-    data x_json_object_name  type string.
-    data x_json_method_name  type string.
+          get reference of m_tbl_global into data(lo_symbols).
 
-    if x_json_callback is not bound.
-      x_json_callback = x_json->get( iv_path = 'eezzAgent.assign' ).
-    endif.
+          if x_prep_files is bound.
+            data(x_reader_name) = x_json->get_value( |reader| ).
+            data(x_reader_sym)  = m_tbl_global[ c_name = x_reader_name ].
+            m_file_loader       = x_reader_sym-c_object.
+            m_file_loader->prepare_download( iv_message = iv_message ).
+            iv_ostream->write_string( x_str_json ).
+            return.
+          endif.
 
-    clear mt_messages.
-    get time stamp field x_timestamp.
+          if x_load_files is bound.
+            if m_file_loader is bound.
+              x_progress = m_file_loader->on_download( iv_message = iv_message ).
+              iv_ostream->write_string( x_progress ).
+              return.
+            endif.
+          endif.
 
-    " execute callback event
-    get reference of m_tbl_global into data(lo_symbols).
-    data(x_eezz_table) = x_json->callback( lo_symbols ).
-    field-symbols <fs_http_value> type string.
+          clear m_file_loader.
+          data x_json_object_name  type string.
+          data x_json_method_name  type string.
 
-    " get table name in case the callback has generated a temp object
-    " if x_eezz_table is bound.
-    "   if x_json_callback is bound.
-    "     split x_json_callback->*[ 1 ]-c_key at '.' into x_json_object_name x_json_method_name.
-    "   endif.
-    " endif.
+          if x_json_callback is not bound.
+            x_json_callback = x_json->get( iv_path = 'eezzAgent.assign' ).
+          endif.
+
+          clear mt_messages.
+          get time stamp field x_timestamp.
+
+          " execute callback event
+          data(x_eezz_table) = x_json->callback( lo_symbols ).
+          field-symbols <fs_http_value> type string.
+
+          " get table name in case the callback has generated a temp object
+          " if x_eezz_table is bound.
+          "   if x_json_callback is bound.
+          "     split x_json_callback->*[ 1 ]-c_key at '.' into x_json_object_name x_json_method_name.
+          "   endif.
+          " endif.
+        endif.
+      catch cx_apc_error into data(x_exception).
+      catch cx_sy_itab_line_not_found.
+        return.
+    endtry.
 
     " Enter the result of the callback into the update
     if x_json_update is bound.
@@ -215,44 +253,63 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
         data(x_style) = ''.
 
         try.
+            data x_source      type string.
+            data x_destination type string.
+
             if x_update-c_value cs '*'.
-              split x_update-c_key at '.' into table data(x_key_struct).
-              data(x_http_dictionary_key)  = x_update-c_key.
-              data(x_http_element_by_name) = x_key_struct[ 1 ].
-              data(x_http_element_attr)    = x_key_struct[ 2 ].
-              data(x_http_element_path)    = x_key_struct[ 3 ].
+              x_source = x_update-c_key.
             else.
-              split x_update-c_value at '.' into table x_key_struct.
-              x_http_dictionary_key        = x_update-c_value.
-              x_http_element_by_name       = x_key_struct[ 1 ].
-              x_http_element_attr          = x_key_struct[ 2 ].
-              x_http_element_path          = x_key_struct[ 3 ].
+              x_source = x_update-c_value.
             endif.
+
+            split x_update-c_key at '.' into table data(x_key_struct).
+            split x_source       at '.' into table data(x_val_struct).
+
+            data(x_http_dictionary_key)  = x_source.
+            data(x_http_element_by_name) = x_val_struct[ 1 ].
+            data(x_http_element_attr)    = x_val_struct[ 2 ].
+            data(x_http_element_path)    = x_key_struct[ 3 ].
           catch cx_sy_itab_line_not_found.
         endtry.
 
         try.
             data(x_global_symbol) = m_tbl_global[ c_name = x_http_element_by_name ].
 
+            if x_eezz_table is not bound and x_http_element_attr cs 'innerHTML'.
+              if x_global_symbol-c_eezz_json is bound.
+                x_json      ?= x_global_symbol-c_eezz_json.
+                x_eezz_table = x_json->callback( lo_symbols ).
+                x_ref_obj    = x_eezz_table.
+                modify table m_tbl_global from x_global_symbol transporting c_object.
+              endif.
+            endif.
+
             if x_eezz_table is bound.
               x_ref_obj = x_eezz_table.
+            elseif x_global_symbol-c_object is bound.
+              x_ref_obj = x_global_symbol-c_object.
             else.
+              x_global_symbol-c_object = new zcl_eezz_table( ).
               x_ref_obj = x_global_symbol-c_object.
             endif.
 
+            data(x_dictionary) = x_ref_obj->get_dictionary( ).
+
             if x_http_element_attr cs |style|.
               x_http_element_attr = x_http_element_path.
+            elseif x_http_element_path is not initial.
+              x_update-c_key = |{ x_key_struct[ 1 ] }.{ x_key_struct[ 2 ] } |.
+              modify table x_dictionary->* from value #( c_key = |tree-node| c_value = x_http_element_path ) transporting c_value.
             endif.
 
             if x_http_element_attr cs 'innerHTML'.
               " For innerHTML we have to create the node tree
               x_new_table = create_table( is_entry = x_global_symbol is_eezz_table = x_ref_obj ).
-              render_node( it_update = ref #( m_tbl_update ) iv_node = x_new_table iv_path = x_http_dictionary_key ).
+              render_node( it_update = ref #( m_tbl_update ) iv_node = x_new_table iv_path = x_update-c_key ).
               create_navigation_update( x_global_symbol ).
             else.
               " For any attribute we use the dictionary of the eezz_table
               data x_http_update type zstr_update.
-              data(x_dictionary)    = x_ref_obj->get_dictionary( ).
 
               if line_exists( x_dictionary->*[ c_key = to_upper( x_http_dictionary_key ) ] ).
                 x_http_update-c_key   = x_http_dictionary_key.
@@ -290,24 +347,13 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
 
     try.
         i_message->get_fields( changing c_fields = x_pcp_fields ).
-        data(x_event_key)   = i_message->get_field( |eezz_event_key| ).
-        data(x_target)      = i_message->get_field( |eezz_target| ).
-        data(x_agent)       = zcl_eezz_agent=>zif_eezz_agent~m_eezz_agent .
-
-        data(x_event_entry) = m_tbl_event[ c_hash = x_event_key ].
+        data(x_agent) = zcl_eezz_agent=>zif_eezz_agent~m_eezz_agent .
 
         loop at x_pcp_fields into data(x_pcp).
-          data(x_translate) = x_event_entry-c_json->get( |/{ x_event_key }/{ x_pcp-name }.{ x_pcp-value }| ).
-
-          if x_translate is bound.
-            data(x_named_target) = x_translate->*[ 1 ]-c_key.
-
-            replace 'this' with x_target into x_named_target.
-            append value #( c_key = x_named_target c_value = x_translate->*[ 1 ]-c_value ) to xt_update.
-          endif.
+          append value #( c_key = x_pcp-name c_value = x_pcp-value ) to xt_update.
         endloop.
 
-        data(x_response)    = zcl_eezz_json=>gen_response( ref #( xt_update ) ).
+        data(x_response) = zcl_eezz_json=>gen_response( it_update = ref #( xt_update ) iv_command = |async| ).
 
         cast if_amc_message_producer_text(
              cl_amc_channel_manager=>create_message_producer(
@@ -329,50 +375,75 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
           x_visible_items  type integer,
           x_visible_blocks type integer.
 
-    data: x_wa_parameter type abap_parmbind,
-          x_parameters   type abap_parmbind_tab.
+    data: x_wa_parameter   type abap_parmbind,
+          x_parameters     type abap_parmbind_tab.
     data: x_jsn_animation  type ref to zcl_eezz_json.
 
-    " Create a click event for eezz-event attributes
+    " Add default behavior onclick
     data(x_processor) = new cl_xslt_processor( ).
     x_processor->set_source_node( iv_document ).
-    x_processor->set_expression( '//*[@data-eezz-event]' ).
+    x_processor->set_expression( |//*[@data-eezz-event]| ).
     x_processor->run( progname = space ).
-    data(x_nodelist) = x_processor->get_nodes( ).
-
+    data(x_nodelist)  = x_processor->get_nodes( ).
     if x_nodelist is bound.
-      data(x_iterator)  = x_nodelist->create_iterator( ).
-      data(x_next)      = x_iterator->get_next( ).
-      do 100 times.
+      data(x_iterator) = x_nodelist->create_iterator( ).
+      do 10000 times.
+        data(x_next) = x_iterator->get_next( ).
         if x_next is not bound.
           exit.
         endif.
-        cast if_ixml_element( x_next )->set_attribute( name = 'onclick' value  = 'easyClick(event,this)' ).
-        x_next = x_iterator->get_next( ).
+        cast if_ixml_element( x_next )->set_attribute_ns( name = |onclick| value = |easyClick(event, this)| ).
       enddo.
     endif.
 
-    " Get all elements with the attribute "name" and store in global table
-    "---x_processor = new cl_xslt_processor( ).
-    "---x_processor->set_source_node( iv_document ).
-    x_processor->set_expression( '//*[@name]' ).
+    " Process named elememts
+    x_processor->set_expression( |//*[@name]| ).
     x_processor->run( progname = space ).
-    x_nodelist = x_processor->get_nodes( ).
-
-    if x_nodelist is bound.
-      x_iterator  = x_nodelist->create_iterator( ).
+    x_nodelist  = x_processor->get_nodes( ).
+    if x_nodelist is not bound.
+      return.
     endif.
+    x_iterator = x_nodelist->create_iterator( ).
 
-    do 1000 times.
+    do 10000 times.
       x_next = x_iterator->get_next( ).
       if x_next is not bound.
         exit.
       endif.
 
-      data(x_name_attr) = x_next->get_attributes( )->get_named_item_ns( 'name' )->get_value( ).
+      if x_next->get_type( ) <> if_ixml_node=>co_node_element.
+        continue.
+      endif.
+
+      data(x_name_attr) = cast if_ixml_element( x_next )->get_attribute_ns( 'name' ).
+      if x_name_attr is initial.
+        continue.
+      endif.
+
       data(x_tmpl_node) = x_next.
-      data x_wa_named_node type ref to zstr_symbols.
       data(x_name)      = x_next->get_name( ).
+      data x_wa_named_node type ref to zstr_symbols.
+
+      if x_name co 'body'.
+        " we will prepare the body to return
+        x_wa_named_node = new zstr_symbols( c_name = x_name_attr c_tag = x_name c_ref_node = x_next c_templ_node = x_tmpl_node ).
+      else.
+        " make a copy of regular named nodes
+        x_tmpl_node     = x_next->clone( ).
+        x_wa_named_node = new zstr_symbols( c_name = x_name_attr c_tag = x_name c_ref_node = x_next c_templ_node = x_tmpl_node ). "? x_tmpl_node->clone( )
+      endif.
+
+      " store message output area
+      data(x_eezz_template) = cast if_ixml_element( x_next )->get_attribute_ns( 'data-eezz-template' ).
+      if x_eezz_template is not initial.
+        if x_name co |table|.
+          if x_eezz_template co |database|.
+            m_message_db-c_name       = x_name_attr.
+            m_message_db-c_templ_node = x_next->clone( ).
+            append value #( c_key = |{ x_name_attr }.innerHTML|  c_value = '' c_prio = 10 ) to m_tbl_update.
+          endif.
+        endif.
+      endif.
 
       if x_name_attr cs 'eezz-i18n-'.
         data x_number type int4.
@@ -385,84 +456,47 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
         endif.
       endif.
 
-      if x_name co 'body'.
-        " we will prepare the body to return
-        x_wa_named_node = new zstr_symbols( c_name = x_name_attr c_tag = x_name c_ref_node = x_next c_templ_node = x_tmpl_node ).
-      else.
-        " make a copy of regular named nodes
-        x_tmpl_node     = x_next->clone( ).
-        x_wa_named_node = new zstr_symbols( c_name = x_name_attr c_tag = x_name c_ref_node = x_next c_templ_node = x_tmpl_node ). "? x_tmpl_node->clone( )
-      endif.
-
       " check if we have also an data-eezz-action
-      data(x_eezz_action) = x_next->get_attributes( )->get_named_item_ns( 'data-eezz-action' ).
-
-      if x_eezz_action is bound.
-        data(x_json)      = new zcl_eezz_json( iv_json = x_eezz_action->get_value( ) ).
+      data(x_eezz_class)  = cast if_ixml_element( x_next )->get_attribute_ns( 'class' ).
+      data(x_eezz_action) = cast if_ixml_element( x_next )->get_attribute_ns( 'data-eezz-action' ).
+      if x_eezz_action is not initial.
+        data(x_json)      = new zcl_eezz_json( iv_json = x_eezz_action ).
         x_wa_named_node->c_eezz_json = x_json.
 
-        data(x_sym_local) = value ztty_eezz_json( ( c_key = 'table_name' c_value = x_name_attr ) ).
-        x_wa_named_node->c_object = x_json->callback(
-            iv_symbols   = ref #( m_tbl_global )
-            iv_parameter = ref #( x_sym_local  ) ).
-      endif.
-
-      data(x_eezz_attr) = x_next->get_attributes( )->get_named_item_ns( 'data-eezz-attributes' ).
-      if x_eezz_attr is bound.
-        x_wa_named_node->c_eezz_json = new zcl_eezz_json( iv_json = x_eezz_attr->get_value( ) ).
-      endif.
-
-      " store message output area
-      data(x_eezz_template) = x_next->get_attributes( )->get_named_item_ns( 'data-eezz-template' ).
-      if x_eezz_template is bound.
-        if x_eezz_template->get_value( ) co 'database' and x_name co 'table'.
-          m_message_db-c_name       = x_name_attr.
-          m_message_db-c_templ_node = x_next->clone( ).
-          " m_message_db-c_object = new zcl_eezz_intertable
+        if x_eezz_template is initial and x_eezz_class np |eezzTreeTemplate|.
+          x_wa_named_node->c_object = x_json->callback( iv_symbols = ref #( m_tbl_global ) ).
         endif.
       endif.
 
-      data(x_eezz_script) = x_next->get_attributes( )->get_named_item_ns( 'data-eezz-async' ).
-      if x_eezz_script is bound.
-        x_json = new zcl_eezz_json( iv_json = x_eezz_script->get_value( ) ).
+      data(x_eezz_attr) = cast if_ixml_element( x_next )->get_attribute_ns( 'data-eezz-attributes' ).
+      if x_eezz_attr is not initial.
+        x_wa_named_node->c_eezz_json = new zcl_eezz_json( iv_json = x_eezz_attr ).
+      endif.
+
+
+      data(x_eezz_script) = cast if_ixml_element( x_next )->get_attribute_ns( 'data-eezz-async' ).
+      if x_eezz_script is not initial.
+        x_json = new zcl_eezz_json( iv_json = x_eezz_script ).
         data(x_tbl_script) = x_json->get( ).
         data(x_key_script) = x_tbl_script->*[ 1 ].
         append value #( c_name = x_name_attr c_hash = x_key_script-c_key c_json = x_json ) to m_tbl_event.
       endif.
+
 
       if  x_wa_named_node is bound.
         append x_wa_named_node->* to m_tbl_global.
       endif.
     enddo.
 
-    " remove all templates from body:
-    " remove_templates( iv_document ). -> moved to xml_node2string()
-
-    " create table
+    " To create initial tables, loop over global symbols and find table templates
     loop at m_tbl_global assigning field-symbol(<x_entry>).
       data x_tbl_class type string.
 
-      "IF <x_entry>-c_tag CO 'body'.
-      "  DATA(x_tbl_class) = <x_entry>-c_eezz_json->get_value( 'eezzAgent.assign' ).
-      "  CONTINUE.
-      "ELSEIF <x_entry>-c_tag CN 'table'.
-      "  CONTINUE.
-      "ENDIF.
-
-      if <x_entry>-c_eezz_json is not bound.
-        " Hide empty tables
-        if <x_entry>-c_tag eq 'table'.
-          clear x_update.
-          x_update-c_key    = m_message_db-c_name && '.innerHTML'.
-          x_update-c_value  = ''.
-          x_update-c_prio   = 10.
-          append x_update to m_tbl_update.
-        endif.
-        continue.
-      endif.
-
       try.
           x_json ?= <x_entry>-c_eezz_json.
+          if x_json is not bound.
+            continue.
+          endif.
 
           data(x_assign) = x_json->get( 'eezzAgent.assign' ).
           if x_assign is not bound.
@@ -473,46 +507,27 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
           x_params       = cast #( x_call-c_ref ).
           x_tbl_class    = x_call-c_key.
         catch cx_sy_itab_line_not_found.
-          " CONTINUE.
+          continue.
       endtry.
 
-      if x_tbl_class is initial.
+      if x_tbl_class is initial or <x_entry>-c_object is not bound.
         continue.
       endif.
 
       if <x_entry>-c_ref_node->get_name( ) cs 'TABLE'.
-        data(xx_new_table)   = create_table( is_entry = <x_entry> ).
-        data(xx_ref_table)   = <x_entry>-c_ref_node.
+        data(xx_new_table) = create_table( is_entry = <x_entry> ).
+        data(xx_ref_table) = <x_entry>-c_ref_node.
+
         xx_ref_table->get_parent( )->replace_child( new_child = xx_new_table old_child = xx_ref_table ).
         <x_entry>-c_ref_node = xx_new_table.
+
         " create navigation updates
         create_navigation_update( <x_entry> ).
-
-        data(x_tree_class) = cast if_ixml_element( xx_new_table )->get_attribute_ns( 'class' ).
-        data(x_tree_id)    = cast if_ixml_element( xx_new_table )->get_attribute_ns( 'id' ).
-
-        if x_tree_class cs |eezzTree|.
-          render_node( it_update = ref #( m_tbl_update ) iv_node = <x_entry>-c_ref_node iv_path = |{ <x_entry>-c_name }.innerHTML.{ x_tree_id }| ).
-        else.
-          render_node( it_update = ref #( m_tbl_update ) iv_node = <x_entry>-c_ref_node iv_path = |{ <x_entry>-c_name }.innerHTML| ).
-        endif.
+        render_node( it_update = ref #( m_tbl_update ) iv_node = <x_entry>-c_ref_node iv_path = |{ <x_entry>-c_name }.innerHTML| ).
       endif.
     endloop.
 
     rv_json = zcl_eezz_json=>gen_response( it_update = ref #( m_tbl_update ) ).
-
-    " get body node
-    "az----read table m_tbl_global with key c_tag = 'body' into data(x_table).
-    " create json string
-    "az----render_node( iv_node = x_table-c_ref_node ).
-    "az----rv_json = create_json_response( ).
-
-    if 1 = 2.
-      show_document( iv_document = iv_document iv_ostream = iv_ostream ).
-      data(c_out) = cl_demo_output=>new( )->begin_section( `agent result` ).
-      c_out->write( rv_json ).
-      c_out->display( ).
-    endif.
   endmethod.
 
 
@@ -611,16 +626,21 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
     " Render inner HTML
     x_iterator = io_node->create_iterator( 1 ).
     x_next     = x_iterator->get_next( ).
+    data(x_recurs) = IV_INNERHTML.
 
     while x_next is bound.
-      x_next = x_iterator->get_next( ).
-      if x_next is not bound.
-        exit.
+      if x_recurs = abap_true.
+        x_next = x_iterator->get_next( ).
+        if x_next is not bound.
+          exit.
+        endif.
+        x_next->render( ostream = x_oostream recursive = abap_true ).
+        data(x_name) = x_next->get_name( ).
+      else.
+        x_next->render( ostream = x_oostream recursive = abap_true ).
+        x_recurs = abap_true.
       endif.
-      x_next->render( ostream = x_oostream recursive = abap_true ).
-      data(x_name) = x_next->get_name( ).
     endwhile.
-    return.
 
   endmethod.
 
@@ -651,19 +671,19 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
       x_offset         type i,
       x_query          type tihttpnvp.
 
-    m_message_mgr = i_message_manager.
+    "---m_message_mgr = i_message_manager.
 
     " Clear previous updates
     clear m_tbl_update.
 
     try.
-      data(x_request) = i_context->get_initial_request( ).
-      x_request->get_header_fields( changing c_fields = x_query ).
-      x_request->get_form_fields( changing c_fields = x_query ).
+        data(x_request) = i_context->get_initial_request( ).
+        x_request->get_header_fields( changing c_fields = x_query ).
+        x_request->get_form_fields( changing c_fields = x_query ).
 
-      data(xxd_value)  = x_request->get_form_field( 'document' ).
-    catch cx_apc_error.
-      return.
+        data(xxd_value)  = x_request->get_form_field( 'document' ).
+      catch cx_apc_error.
+        return.
     endtry.
 
     if zif_eezz_agent~m_eezz_agent is not bound.
@@ -682,7 +702,7 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
       "--cl_http_client=>create_by_url( EXPORTING url = x_str_path IMPORTING client = x_lo_client ).
 
       data(x_result_stream) = new cl_abap_string_c_writer(  ).
-      data(x_regex_pattern) = '<(img|area|br|link|input|hr)[a-zA-Z0-9/%=",.:#*\-_'';{}[:space:]]*>'.
+      data(x_regex_pattern) = '<(img|area|br|link|input|hr)[a-zA-Z0-9/%=",.:#*\-_'';{}[:space:]\[\]]*>'.
 
       data(x_regex_parser)  = new cl_abap_regex( pattern = x_regex_pattern  ).
       data(x_regex_matcher) = x_regex_parser->create_matcher( text = x_str_doc ).
@@ -766,7 +786,8 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
             x_out_stream     = x_stream_factory->create_ostream_cstring( x_response ).
             x_agent         ?= zif_eezz_agent~m_eezz_agent.
 
-            x_agent->handle_request( iv_str_json = i_message->get_text( ) iv_ostream = x_out_stream ).
+            x_agent->handle_request( iv_message = i_message iv_ostream = x_out_stream ).
+
             if x_response is not initial.
               x_message = i_message_manager->create_message( ).
               x_message->set_text( x_response ).

@@ -35,23 +35,14 @@ CLASS ZCL_APC_WSP_EXT_Z_EEZZ_WS_PUS2 IMPLEMENTATION.
     TRY.
 
         DATA(lo_message) = i_message_manager->create_message( ).
-* retrieve the text message
-        DATA(lv_text) = i_message->get_text( ).
 
-* pass request to agent
+*       pass request to agent
         zcl_eezz_agent=>zif_eezz_agent~on_websocket(
           EXPORTING
             i_message         = i_message
             i_message_manager = i_message_manager
             i_context         = i_context ).
 
-** send 1st message
-*        lo_message->set_text( |{ sy-mandt }/{ sy-uname }: ON_MESSAGE has been successfully executed !| ).
-*        i_message_manager->send( lo_message ).
-*
-** send 2nd message, i.e. echo the incoming message
-*        lo_message->set_text( lv_text ).
-*        i_message_manager->send( lo_message ).
 
       CATCH cx_apc_error INTO DATA(lx_apc_error).
 

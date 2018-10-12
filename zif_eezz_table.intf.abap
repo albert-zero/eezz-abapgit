@@ -2,6 +2,9 @@ interface ZIF_EEZZ_TABLE
   public .
 
 
+  data MT_TABLE type ref to DATA .
+  data MT_COLUMN_NAMES type ZTTY_EEZZ_ROW .
+  data MT_DICTIONARY type ZTTY_DICTIONARY .
   data M_OFFSET type INT4 .
   data M_TOPDOWN type INT4 .
   data M_VISIBLE_BLOCK type INT4 .
@@ -10,7 +13,24 @@ interface ZIF_EEZZ_TABLE
   data M_TABLE_DDIC type STRING .
   data M_TABLE_NAME type STRING .
   data M_SELECTED type STRING .
+  data MT_ROW type ZTTY_EEZZ_ROW .
 
+  methods GET_STATUS
+    returning
+      value(RT_STATUS) type ref to ZTTY_DICTIONARY .
+  methods SET_STATUS
+    importing
+      !IV_KEY type STRING
+      !IV_VALUE type STRING optional
+      !IV_STATUS type XSTRING optional .
+  methods ON_DOWNLOAD
+    importing
+      !IV_MESSAGE type ref to IF_APC_WSP_MESSAGE
+    returning
+      value(RV_UPDATE) type STRING .
+  methods PREPARE_DOWNLOAD
+    importing
+      !IV_MESSAGE type ref to IF_APC_WSP_MESSAGE .
   methods GET_UPDATE
     returning
       value(RT_UPDATE) type ref to ZTTY_UPDATE .
@@ -61,11 +81,12 @@ interface ZIF_EEZZ_TABLE
   methods GET_HASH
     importing
       !IV_LINE type ANY
+      !IV_PATH type STRING optional
     returning
       value(RV_HASH) type STRING .
   methods SEND_MESSAGE_PCP
     importing
-      !IV_EVENT type STRING
-      !IV_LINE type ANY
+      !IV_LINE type ANY optional
+      !IV_PATH type STRING optional
       !IT_FIELDS type ref to PCP_FIELDS .
 endinterface.

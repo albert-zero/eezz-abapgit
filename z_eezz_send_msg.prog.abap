@@ -19,16 +19,14 @@ if p_text is not initial.
 
       select * from sflight order by carrid ascending into table @data(x_result_table)  up to 10 rows.
       data(x_table)  = new zcl_eezz_table( table_name = |SFLIGHT| ).
-      data(x_name)   = x_table->get_hash( iv_line =  x_result_table[ 1 ] ).
 
       x_data = value #(
-        ( name = 'status' value = lv_text )
+        ( name = |status.{ lv_text }| value = |*| )
       ).
 
       x_table->send_message_pcp(
-        iv_event      = |TriggerChange|
-        iv_line       = x_result_table[ 1 ]
-        it_fields     = ref #( x_data ) ).
+        it_fields     = ref #( x_data )
+        iv_line       = x_result_table[ 1 ] ).
 
     catch cx_amc_error into data(x_exception).
       cl_demo_output=>display( x_exception->get_text( ) ).
