@@ -13,14 +13,6 @@
     <FIXPT>X</FIXPT>
     <UNICODE>X</UNICODE>
    </VSEOCLASS>
-   <DESCRIPTIONS>
-    <SEOCOMPOTX>
-     <CLSNAME>ZCL_EEZZ_TABLE</CLSNAME>
-     <CMPNAME>M_STATUS</CMPNAME>
-     <LANGU>D</LANGU>
-     <DESCRIPT>Status table</DESCRIPT>
-    </SEOCOMPOTX>
-   </DESCRIPTIONS>
   </asx:values>
  </asx:abap>
 </abapGit>

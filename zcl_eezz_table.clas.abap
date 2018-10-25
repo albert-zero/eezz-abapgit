@@ -18,6 +18,8 @@ public section.
     for ZIF_EEZZ_TABLE~MT_UPDATE .
   aliases M_SELECTED
     for ZIF_EEZZ_TABLE~M_SELECTED .
+  aliases M_STATUS
+    for ZIF_EEZZ_TABLE~M_STATUS .
   aliases M_TABLE_DDIC
     for ZIF_EEZZ_TABLE~M_TABLE_DDIC .
   aliases M_TABLE_NAME
@@ -52,8 +54,6 @@ protected section.
   data M_RESORT type INT4 .
   data MT_COMPONENTS type CL_ABAP_STRUCTDESCR=>COMPONENT_TABLE .
 private section.
-
-  data M_STATUS type ZTTY_DICTIONARY .
     "az---data mt_sort type ztty_sort .
 ENDCLASS.
 
@@ -85,9 +85,10 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
       ( c_key = 'table_prev'     c_value = '-2' )
       ( c_key = 'table_current'  c_value =  '0' )
       ( c_key = 'innerHTML'      c_value = 'innerHTML')
-      ( c_key = 'table-path'     c_value =  'id000000' )
+      ( c_key = 'table_path'     c_value =  'id000000' )
       ( c_key = 'table_items'    c_value =  '20' )
-      ( c_key = 'tree_node'      c_value =  '' )
+      ( c_key = 'tree_path'      c_value =  ''  )
+      ( c_key = 'table_key'      c_value =  '/' )
       ( c_key = 'file_loader'    c_value =  '' )
     ).
 
@@ -154,6 +155,7 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
 
 
   method zif_eezz_table~do_navigate.
+    field-symbols <fs_table> type any table.
 
     data(x_where)    = where * zif_eezz_table~m_topdown.
     data(x_position) = zif_eezz_table~m_offset.
@@ -174,22 +176,20 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
     elseif x_where = -2.
       " Previous
       x_position = x_position - zif_eezz_table~m_visible_block.
-      if x_position < 0.
-        x_position = 0.
-      endif.
     endif.
 
-    me->zif_eezz_table~do_select_database( iv_offset = x_position ).
+    x_position = nmax( val1 = x_position val2 = 0 ).
 
-    " check the selection and keep position, if we reached the end of the table:
-    field-symbols <fs_table> type any table.
-    assign mt_table->* to <fs_table>.
-
-    if lines( <fs_table> ) >= zif_eezz_table~m_visible_block.
+    if m_table_ddic is initial.
+      assign mt_table->* to <fs_table>.
+      x_position = nmin( val1 = lines( <fs_table> ) val2 = x_position ).
       zif_eezz_table~m_offset = x_position.
-      modify table mt_dictionary from value #( c_key = 'table_pos' c_value = zif_eezz_table~m_offset ).
+    else.
+      zif_eezz_table~m_offset = x_position.
+      me->zif_eezz_table~do_select_database( iv_offset = zif_eezz_table~m_offset ).
     endif.
 
+    modify table mt_dictionary from value #( c_key = 'table_pos' c_value = zif_eezz_table~m_offset ).
     m_resort = 1.
   endmethod.
 
@@ -205,11 +205,11 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
 
     if m_table_ddic is initial.
       return.
-    else.
-      data(x_table_ddic) = m_table_ddic.
-      if x_table_ddic+0(1) eq '/'.
-        concatenate '"' x_table_ddic '"' into x_table_ddic.
-      endif.
+    endif.
+
+    data(x_table_ddic) = m_table_ddic.
+    if x_table_ddic+0(1) eq '/'.
+      concatenate '"' x_table_ddic '"' into x_table_ddic.
     endif.
 
     data(x_limit)  = iv_limit.
@@ -370,31 +370,44 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
     x_typedescr   ?= cl_abap_tabledescr=>describe_by_data( <fs_table> ).
     x_linedescr   ?= x_typedescr->get_table_line_type( ).
 
-    data(x_visible) = lines( <fs_table> ).
+    data(x_tablesize) = lines( <fs_table> ).
+    data(x_visible)   = lines( <fs_table> ).
 
-    if x_visible <= 0.
+    if x_tablesize <= 0.
       me->do_select_database( iv_offset = 0 ).
-      x_visible = lines( <fs_table> ).
+      x_tablesize = lines( <fs_table> ).
+    endif.
+
+    data(x_start)   = 0.
+    data(x_ends)    = x_tablesize.
+    data(x_range)   = zif_eezz_table~m_visible_items.
+
+    if mt_dictionary[ c_key = 'table_nav_type' ]-c_value cs 'block'.
+      x_range = zif_eezz_table~m_visible_block.
     endif.
 
     if m_table_ddic is initial.
-      x_visible = x_visible - zif_eezz_table~m_offset.
-      x_index   = x_index   + zif_eezz_table~m_offset.
-    endif.
-
-    if mt_dictionary[ c_key = 'table_nav_type' ]-c_value cs 'block'.
-      x_visible = nmin( val1 = x_visible val2 = zif_eezz_table~m_visible_block ).
+      if zif_eezz_table~m_topdown < 0.
+        x_start   = nmin( val1 = x_tablesize - x_range val2 = x_tablesize - zif_eezz_table~m_offset ).
+      else.
+        x_start   = nmin( val1 = zif_eezz_table~m_offset val2 = x_tablesize - x_range ).
+      endif.
+      x_start = nmax( val1 = x_start val2 = 0 ).
+      x_ends  = nmin( val1 = x_start + x_range val2 = x_tablesize ).
+      x_index = x_start + x_index.
     else.
-      x_visible = nmin( val1 = x_visible val2 = zif_eezz_table~m_visible_items ).
+      x_start = 0.
+      x_ends  = nmin( val1 = x_start + x_range val2 = x_tablesize ).
+      if zif_eezz_table~m_topdown < 0.
+        x_index = x_index - 1.
+        x_index = x_ends  - x_index.
+      else.
+        x_index = x_start + x_index.
+      endif.
     endif.
 
-    if iv_index > x_visible.
+    if x_index > x_ends or x_index <= x_start.
       return.
-    endif.
-
-    if zif_eezz_table~m_topdown < 0.
-      x_index = x_index   - 1.
-      x_index = x_visible - x_index.
     endif.
 
     read table <fs_table> assigning <fs_line> index x_index.
@@ -406,7 +419,9 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
     data: x_genkey type string.
     get reference of mt_column_names into data(x_ref_row).
 
-    data(x_path)    = mt_dictionary[ c_key = |tree_node| ]-c_value.
+    data x_path type string. " mt_dictionary[ c_key = |tree_path| ]-c_value.
+    data(x_path_calc) = mt_dictionary[ c_key = |tree_path| ]-c_value.
+
     x_genkey        = zcl_eezz_helper=>create_hash_for_table_key( iv_path = x_path it_rows = x_ref_row iv_line = <fs_line> iv_clear = abap_true ).
     data(x_genpath) = zcl_eezz_helper=>create_hash_for_table_key( iv_path = x_path it_rows = x_ref_row iv_line = <fs_line> iv_clear = abap_true ).
     data(x_locpath) = zcl_eezz_helper=>create_hash_for_table_key( it_rows = x_ref_row iv_line = <fs_line> iv_clear = abap_true ).
@@ -457,7 +472,7 @@ endmethod.
 
 
   method ZIF_EEZZ_TABLE~GET_STATUS.
-    rt_status = ref #( m_status ).
+    rt_status = m_status.
   endmethod.
 
 
@@ -474,7 +489,8 @@ endmethod.
 
 
   method zif_eezz_table~on_download.
-    data x_update type ztty_update.
+
+    rv_update = new ztty_update( ).
 
     try.
         if iv_message->get_message_type( ) = iv_message->co_message_type_text.
@@ -486,12 +502,10 @@ endmethod.
 
           data(x_prog_seq)  = ( x_sequence + 1 ) * ( x_chunksize / x_filesize ) * 100.
           x_prog_seq        = nmin( val1 = x_prog_seq  val2 = 100 ).
-          x_update = value #(
+          rv_update->* = value #(
             ( c_key = |{ x_progress }.innerHTML|   c_value = |{ x_prog_seq }%| )
             ( c_key = |{ x_progress }.style.width| c_value = |{ x_prog_seq }%| )
           ).
-
-          rv_update = zcl_eezz_json=>gen_response( ref #( x_update ) ).
         endif.
       catch cx_apc_error into data(x_exception).
     endtry.
@@ -522,6 +536,9 @@ endmethod.
 
 
   method zif_eezz_table~set_status.
-    insert value #( c_key = iv_key c_value = iv_value c_status = iv_status ) into table m_status.
+    if m_status is not bound.
+      m_status = new zcl_eezz_json( ).
+    endif.
+    m_status->join( iv_key = iv_key iv_value = iv_value ).
   endmethod.
 ENDCLASS.

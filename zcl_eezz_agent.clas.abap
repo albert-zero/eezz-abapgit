@@ -10,6 +10,7 @@ public section.
   interfaces ZIF_EEZZ_AGENT .
   interfaces IF_AMC_MESSAGE_RECEIVER .
   interfaces IF_AMC_MESSAGE_RECEIVER_PCP .
+  interfaces IF_HTTP_EXTENSION .
 
   data MT_MESSAGES type ZTTY_MESSAGES .
 
@@ -29,9 +30,14 @@ private section.
   class-data M_TBL_GLOBAL type ZTTY_SYMBOLS .
   class-data M_TBL_UPDATE type ZTTY_UPDATE .
 
+  methods HANDLE_WEBSERVICE
+    importing
+      !IV_MESSAGE type ref to IF_APC_WSP_MESSAGE
+      !IV_OSTREAM type ref to IF_IXML_OSTREAM .
   methods CREATE_NAVIGATION_UPDATE
     importing
-      !IV_SYMBOL type ZSTR_SYMBOLS .
+      !IV_SYMBOL type ZSTR_SYMBOLS
+      !IV_ALIAS type STRING optional .
   methods CREATE_TABLE
     importing
       !IS_ENTRY type ZSTR_SYMBOLS
@@ -48,10 +54,6 @@ private section.
       !IV_INNERHTML type ABAP_BOOL default ABAP_TRUE
     returning
       value(RV_STRING) type STRING .
-  methods HANDLE_REQUEST
-    importing
-      !IV_OSTREAM type ref to IF_IXML_OSTREAM
-      !IV_MESSAGE type ref to IF_APC_WSP_MESSAGE .
   methods RENDER_NODE
     importing
       !IT_UPDATE type ref to ZTTY_UPDATE
@@ -67,9 +69,11 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
 
   method constructor.
     try.
-        data(x_msg_cons) = cl_amc_channel_manager=>create_message_consumer(
-                              i_application_id = 'Z_EEZZ_WS_MSG_CHANNEL'
-                              i_channel_id     = '/eezz/web').
+        data x_msg_cons type ref to IF_AMC_MESSAGE_CONSUMER.
+        x_msg_cons = cl_amc_channel_manager=>create_message_consumer( i_application_id = 'Z_EEZZ_WS_MSG_CHANNEL' i_channel_id = '/eezz/web').
+        x_msg_cons->start_message_delivery( i_receiver = me ).
+
+        x_msg_cons = cl_amc_channel_manager=>create_message_consumer( i_application_id = 'Z_EEZZ_WS_MSG_CHANNEL' i_channel_id = '/eezz/auth').
         x_msg_cons->start_message_delivery( i_receiver = me ).
       catch cx_amc_error.
     endtry.
@@ -86,8 +90,13 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
     "data(x_action_attr)   = x_next->get_attributes( )->get_named_item_ns( 'data-eezz-action' )->get_value( ).
     data(x_attr_iterator) = x_attributes->create_iterator( ).
     data(x_attr_element)  = x_attr_iterator->get_next( ).
+    data(x_name)          = iv_symbol-c_name.
 
     FIELD-SYMBOLS: <fs> type zstr_update.
+
+    if iv_alias is not initial.
+      x_name = iv_alias.
+    endif.
 
     call method iv_symbol-c_object->('GET_DICTIONARY') receiving rt_dictionary = x_dictionary.
 
@@ -105,13 +114,13 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
             data(x_new_value) = x_dictionary->*[ c_key = x_key ].
 
             append value #(
-                c_key   = |{ iv_symbol-c_name }.{ x_attr_name }|
+                c_key   = |{ x_name }.{ x_attr_name }|
                 c_value = x_new_value-c_value
                 c_prio  = 10 ) to m_tbl_update.
 
           elseif x_attr_name cs |data-eezz-action|.
             data(x_json) = new zcl_eezz_json( iv_json = x_attr_value ).
-            data(x_updt) = x_json->get( |update| ).
+            data(x_updt) = x_json->get( iv_path = |update| ).
 
             if x_updt is bound.
               loop at x_updt->* into data(x_upd_wa).
@@ -164,9 +173,8 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
   endmethod.
 
 
-  method handle_request.
-
-    data: x_instance      type string,
+  method HANDLE_WEBSERVICE.
+       data: x_instance      type string,
           x_method        type string,
           x_key           type string,
           x_obj           type zstr_eezz_json,
@@ -188,15 +196,16 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
         if iv_message->get_message_type( ) = iv_message->co_message_type_binary.
           if m_file_loader is bound.
             data(x_progress) = m_file_loader->on_download( iv_message = iv_message ).
-            iv_ostream->write_string( x_progress ).
+            data(x_progresp) = zcl_eezz_json=>gen_response( x_progress ).
+            iv_ostream->write_string( x_progresp ).
             return.
           endif.
         else.
           data(x_str_json)      = iv_message->get_text( ).
           data(x_json)          = new zcl_eezz_json( iv_json = x_str_json ).
           data(x_json_callback) = x_json->get( iv_path = 'callback' ).
-          data(x_prep_files)    = x_json->get( |files| ).
-          data(x_load_files)    = x_json->get( |file|  ).
+          data(x_prep_files)    = x_json->get( iv_path = |files| ).
+          data(x_load_files)    = x_json->get( iv_path = |file|  ).
           x_json_update         = x_json->get( iv_path = 'update' ).
 
           get reference of m_tbl_global into data(lo_symbols).
@@ -213,7 +222,8 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
           if x_load_files is bound.
             if m_file_loader is bound.
               x_progress = m_file_loader->on_download( iv_message = iv_message ).
-              iv_ostream->write_string( x_progress ).
+              x_progresp = zcl_eezz_json=>gen_response( x_progress ).
+              iv_ostream->write_string( x_progresp ).
               return.
             endif.
           endif.
@@ -299,13 +309,20 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
               x_http_element_attr = x_http_element_path.
             elseif x_http_element_path is not initial.
               x_update-c_key = |{ x_key_struct[ 1 ] }.{ x_key_struct[ 2 ] } |.
-              modify table x_dictionary->* from value #( c_key = |tree-node| c_value = x_http_element_path ) transporting c_value.
+              modify table x_dictionary->* from value #( c_key = |tree_path| c_value = x_http_element_path ) transporting c_value.
             endif.
 
             if x_http_element_attr cs 'innerHTML'.
               " For innerHTML we have to create the node tree
               x_new_table = create_table( is_entry = x_global_symbol is_eezz_table = x_ref_obj ).
               render_node( it_update = ref #( m_tbl_update ) iv_node = x_new_table iv_path = x_update-c_key ).
+
+              x_global_symbol-c_name = x_key_struct[ 1 ].
+              if line_exists( m_tbl_global[ c_name = x_global_symbol-c_name ] ).
+                modify table m_tbl_global from x_global_symbol.
+              else.
+                insert x_global_symbol into table m_tbl_global.
+              endif.
               create_navigation_update( x_global_symbol ).
             else.
               " For any attribute we use the dictionary of the eezz_table
@@ -349,6 +366,10 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
         i_message->get_fields( changing c_fields = x_pcp_fields ).
         data(x_agent) = zcl_eezz_agent=>zif_eezz_agent~m_eezz_agent .
 
+        if line_exists( x_pcp_fields[ name = |OneDrive.Authentication| ] ).
+          return.
+        endif.
+
         loop at x_pcp_fields into data(x_pcp).
           append value #( c_key = x_pcp-name c_value = x_pcp-value ) to xt_update.
         endloop.
@@ -362,6 +383,40 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
           )->send( i_message = x_response ).
       catch cx_amc_error cx_root into data(x_exc).
         data(x_text) = x_exc->get_text( ).
+    endtry.
+  endmethod.
+
+
+  method if_http_extension~handle_request.
+    data x_list type tihttpnvp.
+    " the result is in the field
+    " ~query_string
+    server->request->get_header_fields( changing fields = x_list ).
+    data(x_value)  = server->request->get_header_field( name = |~query_string| ).
+    data(x_body)   = server->request->get_data( ).
+    data(x_raw)    = server->request->get_raw_message( ).
+
+    data x_filedata type string.
+    data(x_convert) = cl_abap_conv_in_ce=>create( input = x_raw encoding = 'UTF-8' ignore_cerr = abap_true ).
+    x_convert->read( importing data = x_filedata ).
+
+    server->response->set_cdata(
+      data = cl_demo_output=>get( x_list ) ).
+
+    try.
+        data(pcp_message) = cl_ac_message_type_pcp=>create( ).
+        pcp_message->set_field( i_name = |OneDrive.Authentication| i_value = x_value ).
+
+        cast if_amc_message_producer_pcp(
+          cl_amc_channel_manager=>create_message_producer(
+            i_application_id = 'Z_EEZZ_WS_MSG_CHANNEL'
+            i_channel_id     = '/eezz/auth' )
+        )->send( i_message = pcp_message ).
+      catch cx_amc_error cx_ac_message_type_pcp_error  into data(x_exception).
+        data(x_error) = x_exception->get_text( ).
+      catch cx_sy_move_cast_error into data(x_exc_move).
+        data(x_error_mv) = x_exc_move->get_text( ).
+        cl_demo_output=>display( x_error_mv ).
     endtry.
   endmethod.
 
@@ -498,7 +553,7 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
             continue.
           endif.
 
-          data(x_assign) = x_json->get( 'eezzAgent.assign' ).
+          data(x_assign) = x_json->get( iv_path = 'eezzAgent.assign' ).
           if x_assign is not bound.
             continue.
           endif.
@@ -533,8 +588,9 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
 
   method render_node.
 
-    data: x_update      type zstr_update.
-    FIELD-SYMBOLS: <fs> type zstr_update.
+    data: x_update          type zstr_update.
+    field-symbols: <fs>     type zstr_update.
+    field-symbols: <fs_msg> type zstr_message.
     " data x_cls_tblnode type ref to zcl_eezz_table_node.
 
     " create html string
@@ -550,18 +606,11 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
         append x_update to it_update->*.
       endif.
     elseif lines( mt_messages ) gt 0.
-      if m_message_db-c_name is initial.
-        x_update-c_key   = 'eezz_errors.innerHTML'.
-        x_update-c_value = '<tr>'.
-        loop at mt_messages into data(wa_msg).
-          x_update-c_value = x_update-c_value &&
-              |<td>{ wa_msg-c_msgtext }</td|  &&
-              |<td>{ wa_msg-c_msgcls } </td|  &&
-              |<td>{ wa_msg-c_msgnum } </td|.
+      if m_message_db-c_name is not initial.
+        loop at mt_messages assigning <fs_msg>.
+          <fs_msg>-_eezz_row_cell_ = |{ <fs_msg>-c_msgcls }.{ <fs_msg>-c_msgnum }|.
         endloop.
-        concatenate x_update-c_value '</tr>' into x_update-c_value.
-        append x_update to it_update->*.
-      else.
+
         get reference of mt_messages   into data(x_ref_msg).
         get reference of m_tbl_global  into data(x_ref_global).
 
@@ -786,7 +835,7 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
             x_out_stream     = x_stream_factory->create_ostream_cstring( x_response ).
             x_agent         ?= zif_eezz_agent~m_eezz_agent.
 
-            x_agent->handle_request( iv_message = i_message iv_ostream = x_out_stream ).
+            x_agent->handle_webservice( iv_message = i_message iv_ostream = x_out_stream ).
 
             if x_response is not initial.
               x_message = i_message_manager->create_message( ).

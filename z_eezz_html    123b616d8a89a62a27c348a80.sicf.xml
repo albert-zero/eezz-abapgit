@@ -5,6 +5,7 @@
    <URL>/sap/bc/bsp/sap/z_eezz_html/</URL>
    <ICFSERVICE>
     <ICF_NAME>Z_EEZZ_HTML</ICF_NAME>
+    <ICFBITMAP>00000000</ICFBITMAP>
     <ORIG_NAME>z_eezz_html</ORIG_NAME>
    </ICFSERVICE>
    <ICFDOCU>
@@ -12,6 +13,14 @@
     <ICF_LANGU>E</ICF_LANGU>
     <ICF_DOCU>eezz html</ICF_DOCU>
    </ICFDOCU>
+   <ICFHANDLER_TABLE>
+    <ICFHANDLER>
+     <ICF_NAME>Z_EEZZ_HTML</ICF_NAME>
+     <ICFORDER>01</ICFORDER>
+     <ICFTYP>A</ICFTYP>
+     <ICFHANDLER>CL_HTTP_EXT_SERVICE_DEMO</ICFHANDLER>
+    </ICFHANDLER>
+   </ICFHANDLER_TABLE>
   </asx:values>
  </asx:abap>
 </abapGit>

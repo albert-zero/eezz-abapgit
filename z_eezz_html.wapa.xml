@@ -14,18 +14,6 @@
     <item>
      <ATTRIBUTES>
       <APPLNAME>Z_EEZZ_HTML</APPLNAME>
-      <PAGEKEY>TEST.HTM</PAGEKEY>
-      <PAGENAME>test.htm</PAGENAME>
-      <MIMETYPE>text/html</MIMETYPE>
-      <IS_START_PAGE>X</IS_START_PAGE>
-      <LAYOUTLANGU>E</LAYOUTLANGU>
-      <VERSION>A</VERSION>
-      <LANGU>E</LANGU>
-     </ATTRIBUTES>
-    </item>
-    <item>
-     <ATTRIBUTES>
-      <APPLNAME>Z_EEZZ_HTML</APPLNAME>
       <PAGEKEY>TEST_CIRCLE.HTM</PAGEKEY>
       <PAGENAME>test_circle.htm</PAGENAME>
       <MIMETYPE>text/html</MIMETYPE>

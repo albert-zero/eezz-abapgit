@@ -342,6 +342,61 @@ var eezzAgent = {
             xBackgrd = xEx.message;
         }
     },
+
+    // --------------------------------------------------------------------------- 
+    // layout function to put all elements on a circle
+    // --------------------------------------------------------------------------- 
+    /*
+     * 
+     animated_physic: function* ( xJsonArgs, xCmdArgs ) {
+        var i, j, k;
+        var xStart    = new Date().getTime();
+        var xTime     = 0;
+        var xInterval = 0;
+        var xDuration = 0;
+        var deltaPhi  = 0;
+        
+        xJsonArgs.update();
+        var xElements = xJsonArgs.updnew.elements;
+        if (xElements.length == 0) {
+            return;
+        }
+        
+        // Prepare             
+        var xGeometry = this.getGeometry(xCmdArgs, xJsonArgs.updnew.context, xElements);
+        for (i = 0; i < xElements.length; i++) {
+            xElements[i].style.position = "absolute";                    
+            xElements[i].style.left = ( xGeometry.center.x + xGeometry.offset.x + xGeometry.radius.x) + "px";
+            xElements[i].style.top  = ( xGeometry.center.y + xGeometry.offset.y ) + "px";
+            xElements[i].style.physics  = { 
+                    "velocity": (2 * Math.PI * xGeometry.radius.x)/1000,  
+                    "phi"     : 0,
+                    "delay"   : i * 1000 / xElements.length }
+            }
+        }
+        yield -1;
+        
+        // Set position and wait for animation
+        for (i = 0; i < xElements.length; i++) {
+            xTime      = new Date().getTime();
+            xInterval  = xTime - xStart;
+            xStart     = xTime;
+            xDuration += xInterval; 
+            
+            if (xElements[i].physics.delay < xDuration) {
+                continue;
+            }
+            
+            if (xDuration > 1000) {
+                break;
+            }
+            xElements[i].style.physics.phi += xElements[i].style.physics.velocity * xInterval;
+            
+            xElements[j].style.left = ( xGeometry.center.x + xGeometry.radius.x      * Math.cos(xElements[i].style.physics.phi) + xGeometry.offset.x ) + "px";
+            xElements[j].style.top  = ( xGeometry.center.y + (xGeometry.radius.y-20) * Math.sin(xElements[i].style.physics.phi) + xGeometry.offset.y ) + "px";                        
+            yield -1;
+        }
+    }*/
 }
 
 /* ------------------------------------------------------------------------------- */
@@ -392,7 +447,6 @@ function eezzConnect() {
         var xSrcAttribute;
         
         var xValue;
-        var i;
         
         /* update fragments: transfer values within document */
         for (xKeyElement in aJson.updateValue) {
@@ -498,63 +552,11 @@ function eezzConnect() {
                 else {
                     xDstElement[0].innerHTML = xValElement;
                 }
-                
-                setTimeout(( function(xElemRoot) { return function() {
-                    var i;
-                    var xStatusLine = xElemRoot.getElementsByClassName("eezzStatusMsg");
-                    for (i = 0; i < xStatusLine.length; i++) {
-                        xStatusLine[i].style.opacity = 0;
-                    }
-                 }; } )( xDstElement[0] ), 0 );
             }
             else {
                 xDstElement[0].setAttribute(xDstAttribute, xValElement);
             }
         }    
-        
-        /* async events with the following format for key:value pairs in JSON format  
-         * sha1-hash( <path>/<name> ).<event-name> : <value>
-         */
-        var xJsonAsyncStr;
-        var xJsonAsync;
-        var xDestAsync;
-        var xTreeElem;
-               
-        for (xKeyElement in aJson.async) {            
-            try {
-                xValElement   = decodeURIComponent( aJson.async[xKeyElement] );                
-                xDestination  = xKeyElement.split(".");
-                
-                xDstElement   = document.getElementsByName( xDestination[0] )[0];
-                xTreeElem     = xDstElement
-                if (xDstElement.tagName == 'TD') {
-                    xTreeElem = xDstElement.parentNode;
-                }
-                xJsonAsyncStr = xTreeElem.getAttribute('data-eezz-async');
-                xJsonAsyncStr = xJsonAsyncStr.replace(/'/g, '"');
-                xJsonAsync    = JSON.parse( xJsonAsyncStr );
-                xJsonAsync    = xJsonAsync[ xDestination.slice(1).join('.') ];
-                
-                for (xEventKey in xJsonAsync) {
-                    xDestination = xEventKey.split('.')
-                    if (xDestination[0] != 'this') {
-                        xDstElement = xDstElement.getElementsByName( xDestination[0] )[0];
-                    }
-                    
-                    if (xDestination[1] == 'innerHTML') {
-                        xDstElement.innerHTML = xJsonAsync[ xEventKey ];
-                    }
-                    else if (xDestination[1] == 'style') {
-                        xDstElement.style[ xDestination[2] ] = xJsonAsync[ xEventKey ];
-                    }
-                    else {
-                        xDstElement.setAttibute( xDestination[1] ) = xJsonAsync[ xEventKey ];
-                    }
-                }
-            } catch (aException) {
-                continue;
-            }
-        }        
         
         /* Start reading files */
         if (aJson.files) {
@@ -578,27 +580,44 @@ function eezzTreeExCo(aElement) {
     var xTreeNode = aElement;
     var Attribute;
     
-    if (xTreeNode.className.indexOf('eezzTreeNode') < 0) {
-        return true;
+    if (xTreeNode.className.indexOf('eezzTreeHead') < 0) {
+    	return true;
     }
-    xTreeHead = xTreeNode.getElementsByClassName('eezzTreeHead');
-    if (xTreeHead.length == 0) {
-        return true;
+    
+    while (xTreeNode != null) {
+    	xTreeNode = xTreeNode.parentNode;
+    	if (xTreeNode.className.indexOf('eezzTreeNode') >= 0) {
+    		break;
+    	}
     }
-    xTreeBody = xTreeHead[0].getElementsByTagName('TR')[0];
-    xTreeNode.innerHTML = xTreeBody.innerHTML;
+    
+    if (xTreeNode == null) {
+    	return true;
+    }
+    
+    xTreeBody = xTreeHead.getElementsByTagName('tbody')[0];
+    xTreeBody = xTreeBody.getElementsByTagName('tr')[0];
+    xExpanded = aElement.getAttribute('eezz-tree-expanded');
 
     var  xFlipElements;
     var  xInx;
     xFlipElements = aElement.getElementsByClassName('eezzClosed');
     for (xInx = 0; xInx < xFlipElements.length; xInx++) {
-        xFlipElements[xInx].style.display = 'initial';
+    	xFlipElements[xInx].style.display = 'initial';
     } 
     xFlipElements = aElement.getElementsByClassName('eezzOpend');
     for (xInx = 0; xInx < xFlipElements.length; xInx++) {
-        xFlipElements[xInx].style.display = 'none';
+    	xFlipElements[xInx].style.display = 'none';
     } 
-    return false;
+
+    if (xExpanded == 'expanded') {
+    	xTreeNode.innerHTML = xTreeBody.innerHTML;
+    	xTreeNode.setAttribute('eezz-tree-expanded', 'collapsed');
+        return false;
+    }
+    else {
+        return true;
+    }
 }
 
 /* --------------------------------- */
@@ -644,11 +663,11 @@ function eezzTreeInsert(aElementId, aNodeElement) {
     var  xInx;
     xFlipElements = xTableHead.getElementsByClassName('eezzClosed');
     for (xInx = 0; xInx < xFlipElements.length; xInx++) {
-        xFlipElements[xInx].style.display = 'none';
+    	xFlipElements[xInx].style.display = 'none';
     } 
     xFlipElements = xTableHead.getElementsByClassName('eezzOpend');
     for (xInx = 0; xInx < xFlipElements.length; xInx++) {
-        xFlipElements[xInx].style.display = 'initial';
+    	xFlipElements[xInx].style.display = 'initial';
     } 
 }
 
@@ -685,7 +704,7 @@ function readOneFile(aHeader, aFile) {
             
             aReader.onload   = (
                 function(xOneJson) {
-                    var xResponse = JSON.stringify(xOneJson); 
+                    var xResponse = JSON.stringify(xOneJson);                                
                     return function(e) {
                         eezzWebSocket.send(xResponse);
                         eezzWebSocket.send(e.target.result);
@@ -712,7 +731,6 @@ function readFiles(aHeader) {
             
             var xJson   = {
                 "file": { 
-                    "transfer" : 0,                
                     "chunkSize": xFile.size,
                     "size"     : xFile.size, 
                     "name"     : xFile.name,
@@ -740,270 +758,141 @@ function easyClick(aEvent, aElement) {
     var aPost  = false;
     var aValue;
     var aChunkSize = 65536*2;
+    var aClassAttr;
 
-    aJson['name'] = aElement['name'];
-
-    if (aJson.files) {
-        aJson['return'] = {code:0, values:[]};
-        aJson.chunkSize = aChunkSize;
-        aPost = true;
-    }
-    
-    /* handle tree node events */
-    var aTreeElem   = aElement;
-    var xNodeElem   = aElement;
-    var xTreePath   = '';
-    var xCallPath   = '';
-    var xIsTreeNode = false;
-    
-    // Check for tree node for element
-    for (xNodeElem = aTreeElem; xNodeElem != null; xNodeElem = xNodeElem.parentNode) {
-        if (!xNodeElem.className) {
-            continue;
-        }             
-        if (xNodeElem.className.indexOf('eezzTreeNode') >= 0) {
-            aTreeElem   = xNodeElem;
-            xIsTreeNode = true;            
-            break;
-        }
-        if (xNodeElem.className.indexOf('eezzTreeNodeRoot') >= 0) {
-            break;
-        }
-    }
-    
-    if (xIsTreeNode) {
-    	// In a tree we stop propagation to prevent the entire
-    	// tree from collapsing
-        if (aEvent.stopPropagation) {
-            aEvent.stopPropagation();
-        }
-        else {
-            aEvent.cancelBubble();
-        }
-
-        // Close all menu dialogs of this tree node
-    	// 1. Find the common parent 
-    	// 2. Find all open dialog elements on foreign trees paths
-        for (xNodeElem = aTreeElem.parentNode; xNodeElem != null; xNodeElem = xNodeElem.parentNode) {
-            if (xNodeElem.className && xNodeElem.className.indexOf('eezzTreeNode') >= 0) {
-               var aMenuNodes = xNodeElem.getElementsByClassName('eezzMenuDialog');
-        	   for (var i = 0; i < aMenuNodes.length; i++) {
-        		   for (var xMenuParent = aMenuNodes[i].parentNode.parentNode; xMenuParent != null; xMenuParent = xMenuParent.parentNode) {
-        			   if (xMenuParent.className.indexOf('eezzTreeNode') >= 0) {
-        				  if (xMenuParent != aTreeElem) { 
-        				      eezzTreeExCo(xMenuParent);
-        		          }
-        		          break;
-        			   }
-        		   }
-               }
-               break;
-            }
-        }
-    }
-    
-    // In tree mode we collect the path element
-    if (xIsTreeNode) {
-        var xPathArr = [];
-        var xCallArr = [];
+//    aJson['name'] = aElement['name'];
+//        
+//    if (aJson.files) {
+//        aJson['return'] = {code:0, values:[]};
+//        aJson.chunkSize = aChunkSize;
+//        aPost = true;
+//    }
+//
+//    /* Generate a callback request */
+//    if (aJson.callback) {    
+//        aPost = true;
+//        for (xMethod in aJson.callback) {
+//            for (xArg in aJson.callback[xMethod]) {
+//                aDest = aJson.callback[xMethod][xArg];
+//                
+//                if (typeof aDest === 'string' && aDest.indexOf(".") >= 0) {
+//                    aDest = aJson.callback[xMethod][xArg].split("."); 
+//                
+//                    if (aDest[0] == "this") {
+//                        aElem = aElement
+//                    }
+//                    else {
+//                        aElem  = document.getElementsByName(aDest[0])[0];                        
+//                    }
+//                    
+//                    aValue = aElem[aDest[1]]
+//                    if (aValue == undefined) {
+//                        aValue = aElem.getAttribute(aDest[1]);
+//                    }
+//                    aJson.callback[xMethod][xArg] = aValue;                    
+//                }
+//                else {
+//                    aJson.callback[xMethod][xArg] = aDest;
+//                }                        
+//            }
+//        }
+//    }
+//    
+//    /* handle tree node events */
+//    var aTreeElem = null;
+//    var xParent   = aElement;
+//    var xPath     = '';
+//    
+//    // Calculate path and get tree node for element
+//    if (aElement.nodeName == 'TD' || aElement.nodeName == 'TR') {
+//    	while (xParent != null) {
+//            if (xParent.className.indexOf('eezzTree') >= 0) {
+//            	aTreeElem = xParent;
+//            	break;
+//            }
+//            if (xParent.nodeName == 'TABLE' && xParent.className.indexOf('eezzTree') < 0) {
+//            	break;
+//            }
+//    		xParent = xParent.parentElement;
+//    	}
+//    }
+//
+//    if (aTreeElem != null) {
+//        if (aEvent.stopPropagation) {
+//            aEvent.stopPropagation();
+//        }
+//        else {
+//            aEvent.cancelBubble();
+//        }   
+//        if (!eezzTreeExCo(aTreeElem)) {
+//        	return;
+//        }
+//    }
+//    
+//    if (aJson.update) {
+//        var aInxKey = 0;
+//        var aInxVal = 0;
+//        var aNewVal;
+//        var aNewKey;
+//        var aElemId;
+//        var aElemName;
+//        var xTreeDest;
+//        var xNewUpdate = {};
+//        var xValue;
+//        
+//        if (aTreeElem != null) {
+//        	xPath = aTreeElem.getAttribute('data-eezz-path');            
+//            if (xPath == null) {
+//            	xPath = ''
+//            }
+//            else {
+//            	xPath = '.' + xPath;
+//            }
+//        }
+//
+//        for (xTreeDest in aJson.update) {
+//            aInxKey  = xTreeDest.indexOf('this.');
+//            aInxVal  = aJson.update[ xTreeDest ].indexOf('this.');
+//            
+//            aNewVal  = aJson.update[ xTreeDest ];
+//            aNewKey  = xTreeDest;
+//            
+//            if (aInxVal >= 0) {
+//            	aDest   = aNewVal.split('.');
+//            	aNewVal = aTreeElem.getAttribute('name') + '.' + aDest[1];                
+//            }
+//            
+//            if (aInxKey >= 0) {
+//            	aDest    = aNewKey.split(".");
+//            	aNewKey  = aTreeElem.getAttribute('name') + '.' + aDest[1] + xPath;
+//            }            
+//            xNewUpdate[ aNewKey ] = aNewVal;
+//        
+//            /*
+//            aDest     = aNewVal.split('.');
+//            aTreeElem = document.getElementsByName( aDest[0] );
+//            if (aTreeElem.length == 0) {
+//            	continue;
+//            }
+//            xValue    = aTreeElem.getAttribute( aDest[1] );
+//            if (!xValue) {
+//            	continue;
+//            }
+//            aDest     = aNewKey.split('.');
+//            aTreeElem = document.getElementsByName( aDest[0] );
+//            if (aTreeElem.length == 0) {
+//            	continue;
+//            }
+//            aTreeElem.setAttribute( aDest[1], xValue );            
+//            */
+//        }
+//
+//        aJson.update = xNewUpdate; 
+//        aPost        = true;
+//    }
         
-        for (xNodeElem = aTreeElem; xNodeElem != null; xNodeElem = xNodeElem.parentNode) {
-        	if (!xNodeElem.className) {
-                continue;		
-        	}
-               
-            if (xNodeElem.className.indexOf('eezzTree') >= 0) {
-                if (xNodeElem.getAttribute('data-eezz-path')) {
-                    xTreePath = xNodeElem.getAttribute('data-eezz-path');
-                    break;
-                }
-            }
-            if (xNodeElem.className.indexOf('eezzTreeNodeRoot') >= 0) {
-                break;
-            }
-        }
-     }
-     
-    var xSource;
-    var xSourceElem;
-    var xDestElem;
-    var xSplitArgs;
-    var xValue;
-    var xJsnAssign;
-    var xNewUpdate = {};
-    var xSrcValue = '';
-
-    // Propagate the update request and generate callbacks for tree mode
-    if (aJson.update) {        
-        for (xUpdDest in aJson.update) {
-            try {    
-                var aNewKey  = xUpdDest;
-                var aNewVal  = aJson.update[ xUpdDest ];
-                
-                if (aNewKey.indexOf('.innerHTML') >= 0 && xIsTreeNode) {
-                    if (!eezzTreeExCo(aTreeElem)) {
-                        return;
-                    }                	
-                }
-                
-                if (aNewKey.indexOf('this.') >= 0) {
-                	if (aNewKey.indexOf('.innerHTML') >= 0) {
-                	    if (!eezzTreeExCo(aTreeElem)) {
-                            return;
-                        }
-                	}
-                    xSplitArgs = aNewKey.split('.');
-                    aNewKey    = aTreeElem.getAttribute('name') + '.' + xSplitArgs[1];                    
-                }
-
-                // Transfer within a page using {} notation
-                if (aNewKey.indexOf('.') > 0) {
-                	try {
-	                    xSplitArgs    = aNewKey.split('.');
-	                    xSourceElem   = document.getElementsByName( xSplitArgs[0] )[0];
-	                    xValue        = xSourceElem.getAttribute( xSplitArgs[1] );
-	                    if (xValue.indexOf('{}') > 0) {
-	                    	xValue.replace(/{}/gi, aNewVal);
-	                    }
-                    } catch (aException1) {}
-                }
-                
-                if (xIsTreeNode) {
-                	aNewKey = aNewKey + '.' + xTreePath;
-                }
-
-                if (aNewVal.indexOf('this.') >= 0) {
-                    xSplitArgs = aNewVal.split('.');
-                    if (aTreeElem.getAttribute('name')) {
-                    	aNewVal = aTreeElem.getAttribute('name') + '.' + xSplitArgs[1];
-                    }
-                }
-                xNewUpdate[ aNewKey ] = aNewVal;                
-                
-                if (aNewVal.indexOf('.') > 0) {
-                    xSplitArgs    = aNewVal.split('.');
-                    xSourceElem   = document.getElementsByName( xSplitArgs[0] )[0];
-                    xStrAction    = xSourceElem.getAttribute('data-eezz-action');
-                    xStrAction    = xStrAction.replace(/'/g, '"');                    
-                    xJsnAction    = JSON.parse( xStrAction );
-                    
-                    if (xJsnAction['eezzAgent.assign'] && xSourceElem.className == 'eezzTreeTemplate') {
-                        xJsnAction = xJsnAction['eezzAgent.assign'];
-                        
-	                    aJson.callback = {};
-                        for (xMethod in xJsnAction) {
-                            aJson.callback[ xMethod + '.' + xSplitArgs[0] ] = {};
-                            for (xArgs in xJsnAction[xMethod]) {
-                                aJson.callback[ xMethod + '.' + xSplitArgs[0] ][xArgs] = xJsnAction[xMethod][xArgs];
-                            }
-                        }
-                    }
-                }
-            } catch (aException) {
-                continue;
-            }            
-        }
-        aJson.update = xNewUpdate; 
-        aPost        = true;
-    }
-    
-    // Check if parameter are to be transferred directly
-    for (xUpdDest in aJson.updateValue) {
-        try {
-            var aNewKey  = xUpdDest;
-            var aNewVal  = aJson.updateValue[ xUpdDest ];
-
-            if (aNewKey.indexOf('.') < 0) {
-                continue
-            }    
-            
-            if (aNewKey.indexOf('this.') >= 0) {
-                xSplitArgs = aNewKey.split('.');
-                aNewKey    = aTreeElem.getAttribute('name') + '.' + xSplitArgs[1];
-            }
-
-            if (aNewVal.indexOf('.') < 0) {
-                xSrcValue = aNewVal;
-            }
-            //else if (aNewVal.indexOf('this.data-eezz-path') >= 0) {
-            //    xSrcValue   = xTreePath;
-            //}
-            else if (aNewVal.indexOf('this.') >= 0) {
-                xSplitArgs = aNewVal.split('.');                
-                aNewVal    = aTreeElem.getAttribute('name') + '.' + xSplitArgs[1];
-                xSrcValue  = aTreeElem.getAttribute( xSplitArgs[1] );
-            }
-            else {
-                xSplitArgs = aNewVal.split('.');
-                xSrcValue  = document.getElementsByName( xSplitArgs[0] )[0].getAttribute( xSplitArgs[1] );
-            }
-            
-            if (!xSrcValue) {
-                continue;
-            }
-            
-            if (aNewKey.indexOf('.innerHTML') >= 0) {
-                xSplitArgs = aNewKey.split('.');                    
-                document.getElementsByName( xSplitArgs[0] )[0].innerHTML = xSrcValue;
-            }
-            else {
-                xSplitArgs = aNewKey.split('.');                    
-                document.getElementsByName( xSplitArgs[0] )[0].setAttribute( xSplitArgs[1], xSrcValue );                    
-            }        
-            xNewUpdate[ aNewKey ] = aNewVal;
-        } catch (aException) {
-            continue;
-        }
-    } 
-    
-    if (aJson.callback) {    
-        aPost = true;
-        var xNewCallback = {};
-        var xNewMethod;
-        for (xMethod in aJson.callback) {
-        	xNewMethod = xMethod;
-        	if (xMethod.indexOf('this.') >= 0) {
-                xSplitArgs = xMethod.split('.');                
-        		xNewMethod = aTreeElem.getAttribute('name') + '.' + xSplitArgs[1];
-        	}
-        	xNewCallback[ xNewMethod ] = aJson.callback[ xMethod ]; 
-        }
-        aJson.callback = xNewCallback;
-    }
-    
-    if (aJson.callback) {    
-        aPost = true;
-        for (xMethod in aJson.callback) {
-            for (xArg in aJson.callback[xMethod]) {
-                xSource     = aJson.callback[xMethod][xArg];
-                xSplitArgs  = xSource.split('.');
-                xSourceElem = aTreeElem;
-                
-                try {
-                    //if (xSource.indexOf('this.data-eezz-path') >= 0) {
-                	//    aJson.callback[xMethod][xArg] = xCallPath;
-                	//}                    
-                    if (xSource.indexOf('this.') >= 0) {
-                        aJson.callback[xMethod][xArg] = xSourceElem.getAttribute( xSplitArgs[1] );
-                    }
-                    else if (xSplitArgs.length > 1) {
-                        xSourceElem  = document.getElementsByName( xSplitArgs[0] )[0];
-                        if ( xSourceElem[ xSplitArgs[1] ]) {
-                        	aJson.callback[xMethod][xArg] = xSourceElem[ xSplitArgs[1] ]; 
-                        }
-                        else {
-                        	aJson.callback[xMethod][xArg] = xSourceElem.getAttribute( xSplitArgs[1] );
-                        }
-                    }
-                } catch (aException) {
-                    continue;
-                }
-            }
-        }
-    }
-
-    if (aPost == true) {
-        var aResponse = JSON.stringify(aJson);
-        eezzWebSocket.send(aResponse);
-    }
+//    if (aPost == true) {
+    //        var aResponse = JSON.stringify(aJson);
+    //        eezzWebSocket.send(aResponse);
+    //} 
 }

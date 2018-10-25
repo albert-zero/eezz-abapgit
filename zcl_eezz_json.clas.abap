@@ -33,6 +33,7 @@ public section.
   methods GET
     importing
       !IV_PATH type STRING optional
+      !IV_MATCH type I default -1
     returning
       value(RT_OBJ) type ref to ZTTY_EEZZ_JSON .
   methods GET_RANGE
@@ -68,6 +69,7 @@ public section.
   methods GEN_ROW_EVENT
     importing
       !IV_NAME type STRING
+      !IV_THIS type STRING optional
       !IV_INDEX type INT4
       !IV_DICTIONARY type ref to ZTTY_DICTIONARY optional
     returning
@@ -458,21 +460,23 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
     data(x_json_callback) = me->get( iv_path = 'callback' ).
     data(x_json_stream)   = new cl_abap_string_c_writer(  ).
 
+    data(x_name) = iv_name.
+
     if x_json_callback is bound.
       x_json_stream->write( |\{"callback":\{"{ x_json_callback->*[ 1 ]-c_key }":\{| ).
 
       x_attributes = cast #( x_json_callback->*[ 1 ]-c_ref ).
       if x_attributes is bound.
         loop at x_attributes->* into data(xwa_attr).
-           x_json_stream->write( |{ x_comma }"{ xwa_attr-c_key }":"{ xwa_attr-c_value }"| ).
-           x_comma = ','.
+          x_json_stream->write( |{ x_comma }"{ xwa_attr-c_key }":"{ xwa_attr-c_value }"| ).
+          x_comma = ','.
         endloop.
       endif.
 
       x_json_stream->write( |\}\}| ).
       x_json_stream->write( | ,"update"  :\{| ).
     else.
-      x_json_stream->write( |\{"callback":\{"{ iv_name }.do_select"  :\{"index":"{ iv_index }"\}\}| ).
+      x_json_stream->write( |\{"callback":\{"{ x_name }.do_select"  :\{"index":"{ iv_index }"\}\}| ).
       x_json_stream->write( | ,"update"  :\{| ).
     endif.
 
@@ -481,15 +485,15 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
       loop at x_json_update->* into data(xwa_update).
 
         try.
-          split xwa_update-c_key at '.' into table data(x_key_element).
-          if iv_dictionary is bound and x_key_element[ 1 ] eq 'this'.
-            data(x_this_update_key) = iv_dictionary->*[ c_key = x_key_element[ 2 ] ]-c_value.
-            " data(x_this_update_att) = x_key_element[ 3 ].
-            x_json_stream->write( |{ x_comma }"{ iv_name }.{ x_this_update_key }":"{ xwa_update-c_value }"| ).
-            x_comma = ','.
-            continue.
-          endif.
-        catch cx_sy_itab_line_not_found.
+            split xwa_update-c_key at '.' into table data(x_key_element).
+            if iv_dictionary is bound and x_key_element[ 1 ] eq 'this'.
+              data(x_this_update_key) = iv_dictionary->*[ c_key = x_key_element[ 2 ] ]-c_value.
+              " data(x_this_update_att) = x_key_element[ 3 ].
+              x_json_stream->write( |{ x_comma }"{ iv_this }.{ x_this_update_key }":"{ xwa_update-c_value }"| ).
+              x_comma = ','.
+              continue.
+            endif.
+          catch cx_sy_itab_line_not_found.
         endtry.
 
         x_json_stream->write( |{ x_comma }"{ xwa_update-c_key }":"{ xwa_update-c_value }"| ).
@@ -509,23 +513,26 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
       x_tbl_json      type ref to ztty_eezz_json.
 
     data(x_ref_tbl) = m_tbl_json.
-
+    data(x_match)   = iv_match.
     clear rt_obj.
+    if m_tbl_json is initial.
+      return.
+    endif.
 
-    try.
-        if iv_path is initial.
-          rt_obj = cast #( x_ref_tbl->*[ 1 ]-c_ref ).
-          return.
-        endif.
+    if iv_path is initial.
+      rt_obj = cast #( x_ref_tbl->*[ 1 ]-c_ref ).
+      return.
+    endif.
 
-        split iv_path at '/' into table data(x_tbl_path).
-        x_ref_tbl   = cast #( x_ref_tbl->*[ 1 ]-c_ref ).
+    split iv_path at '/' into table data(x_tbl_path).
+    x_ref_tbl   = cast #( x_ref_tbl->*[ 1 ]-c_ref ).
 
-        if x_ref_tbl is not bound.
-          return.
-        endif.
+    if x_ref_tbl is not bound.
+      return.
+    endif.
 
-        loop at x_tbl_path into data(x_path).
+    loop at x_tbl_path into data(x_path).
+      try.
           if x_path is initial.
             continue.
           endif.
@@ -535,11 +542,18 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
           if x_ref_str-c_ref is bound.
             x_ref_tbl = cast #( x_ref_str-c_ref ).
           endif.
-        endloop.
 
-      catch cx_sy_itab_line_not_found.
-        return.
-    endtry.
+          x_match = x_match - 1.
+          if x_match = 0.
+            exit.
+          endif.
+        catch cx_sy_itab_line_not_found.
+          if x_match <= 0.
+            return.
+          endif.
+      endtry.
+    endloop.
+
 
     rt_obj = cast #( x_ref_tbl ).
 

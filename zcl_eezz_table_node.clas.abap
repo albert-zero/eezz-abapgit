@@ -93,16 +93,13 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
     endif.
 
     data(x_class) = cast if_ixml_element( iv_node )->get_attribute_ns( |class| ).
-
     modify table m_dictionary->* from value #( c_key = 'innerHTML' c_value = x_update ).
 
-    data(x_element_name) = cast if_ixml_element( iv_node )->get_attribute_ns( 'name' ).
-    if strlen( x_element_name ) = 0.
-      x_element_name = m_table_name.
-    endif.
+    data(x_this_name)    = cast if_ixml_element( iv_node )->get_attribute_ns( 'name' ).
+    data(x_element_name) = m_table_name.
 
     cast if_ixml_element( iv_node )->set_attribute_ns( name = 'onclick' value  = 'easyClick(event,this)' ).
-    data(x_event_str) = iv_json->gen_row_event( iv_name = x_element_name iv_index = iv_idx iv_dictionary = m_dictionary ).
+    data(x_event_str) = iv_json->gen_row_event( iv_name = x_element_name iv_this = x_this_name iv_index = iv_idx iv_dictionary = m_dictionary ).
     cast if_ixml_element( iv_node )->set_attribute_ns( name = 'data-eezz-event'  value = x_event_str ).
 
   endmethod.
@@ -218,6 +215,11 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
       " Add elements with attributes not having data-eezz-template
       data(x_eezz_attr) = x_attributes->get_named_item_ns( 'data-eezz-template' ).
       if x_eezz_attr is not bound.
+        data(x_class_attr) = cast if_ixml_element( x_next )->get_attribute_ns( 'class' ).
+        if x_class_attr cs |eezzTreeNode|.
+          data(x_constpath) = |{ m_dictionary->*[ c_key = |tree_path| ]-c_value }|.
+          cast if_ixml_element( x_next )->set_attribute_ns( name = |data-eezz-path| value = x_constpath ).
+        endif.
         iv_parent->append_child( x_next ).
         continue.
       endif.
@@ -226,7 +228,7 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
       x_eezz_json = new zcl_eezz_json( iv_json = x_eezz_attr->get_value( ) ).
 
       " Check the dictionary to display special nodes:
-      data(x_jsonobj) = x_eezz_json->get( 'display' ).
+      data(x_jsonobj) = x_eezz_json->get( iv_path = 'display' ).
       if x_jsonobj is bound.
         data(x_jsonrow) = x_jsonobj->*[ 1 ].
 
@@ -240,7 +242,7 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
       endif.
 
       " Evaluate and add table-row elements
-      if x_eezz_json->get( 'table-rows' ) is not bound.
+      if x_eezz_json->get( iv_path = 'table-rows' ) is not bound.
         continue.
       endif.
 
@@ -251,7 +253,7 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
       x_cwa_templ-c_node  = x_next->clone( ).
       append x_cwa_templ to x_tbl_templ.
 
-      data(x_row_range)   = x_eezz_json->get( 'table-rows' ).
+      data(x_row_range)   = x_eezz_json->get( iv_path = 'table-rows' ).
       if x_row_range->*[ 1 ]-c_key cs |tiles|.
         clear x_reference.
         x_idx             = 0.
@@ -372,11 +374,13 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
 
         if line_exists( x_table_row->*[ c_field_name = '_eezz_row_cell_' ] ).
           x_row_cell = x_table_row->*[ c_field_name = '_eezz_row_cell_' ].
-          cast if_ixml_element( <fs_cw_templ>-c_node )->set_attribute_ns( name = 'name' value = x_row_cell-c_genkey ).
+          cast if_ixml_element( <fs_cw_templ>-c_node )->set_attribute_ns( name = 'name'           value = x_row_cell-c_genkey ).
+          cast if_ixml_element( <fs_cw_templ>-c_node )->set_attribute_ns( name = |data-eezz-path| value = x_row_cell-c_genkey ).
 
-          "if line_exists( x_row_cell-c_dictionary->*[ c_key = |eezzPath| ] ).
-          "  x_path = x_row_cell-c_dictionary->*[ c_key = |eezzPath| ]-c_value.
-          "endif.
+          if line_exists( m_dictionary->*[ c_key = |tree_path| ] ).
+            data(x_treepath) = |{ m_dictionary->*[ c_key = |tree_path| ]-c_value }/{ x_row_cell-c_genkey }|.
+            cast if_ixml_element( <fs_cw_templ>-c_node )->set_attribute_ns( name = |data-eezz-path| value = x_treepath ).
+          endif.
 
         endif.
 
@@ -454,7 +458,7 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
 
       data(x_template)   = cast if_ixml_element( x_next )->get_attribute_ns( name = 'data-eezz-template' ).
       data(x_json)       = new zcl_eezz_json( iv_json = x_template ).
-      data(x_json_tbl)   = x_json->get( 'display' ).
+      data(x_json_tbl)   = x_json->get( iv_path = 'display' ).
 
       if x_json_tbl is bound.
         data(x_display)  = x_json_tbl->*[ 1 ].
@@ -668,7 +672,7 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
 
       " display elements related to the column type are collected for the table columns section
       data(x_cl_json)  = new zcl_eezz_json( iv_json = x_eezz_attr->get_value( ) ).
-      data(x_template) = x_cl_json->get( 'display/type' ).
+      data(x_template) = x_cl_json->get( iv_path = 'display/type' ).
       if x_template is bound.
         data(x_jsonrow)     = x_template->*[ 1 ].
         x_wac_templ-c_key   = x_jsonrow-c_value.
@@ -680,7 +684,7 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
 
       " display elements related to row attributes are stable regarding their position
       " and are inserted, if the attributes matches the value exact
-      x_template  = x_cl_json->get( 'display' ).
+      x_template  = x_cl_json->get( iv_path = 'display' ).
       if x_template is bound and line_exists( iv_row->*[ c_field_name = |_eezz_row_cell_| ] ).
         x_jsonrow = x_template->*[ 1 ].
         data(x_rowcell) = iv_row->*[ c_field_name = |_eezz_row_cell_| ].
@@ -702,7 +706,7 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
       endif.
 
       " display elements not in the template description are stable regarding their position
-      x_template = x_cl_json->get( 'table-columns' ).
+      x_template = x_cl_json->get( iv_path = 'table-columns' ).
       if x_template is not bound.
         iv_parent->append_child( x_next->clone( ) ).
         continue.

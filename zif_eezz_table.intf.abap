@@ -14,20 +14,20 @@ interface ZIF_EEZZ_TABLE
   data M_TABLE_NAME type STRING .
   data M_SELECTED type STRING .
   data MT_ROW type ZTTY_EEZZ_ROW .
+  data M_STATUS type ref to ZCL_EEZZ_JSON .
 
   methods GET_STATUS
     returning
-      value(RT_STATUS) type ref to ZTTY_DICTIONARY .
+      value(RT_STATUS) type ref to ZCL_EEZZ_JSON .
   methods SET_STATUS
     importing
       !IV_KEY type STRING
-      !IV_VALUE type STRING optional
-      !IV_STATUS type XSTRING optional .
+      !IV_VALUE type STRING optional .
   methods ON_DOWNLOAD
     importing
       !IV_MESSAGE type ref to IF_APC_WSP_MESSAGE
     returning
-      value(RV_UPDATE) type STRING .
+      value(RV_UPDATE) type ref to ZTTY_UPDATE .
   methods PREPARE_DOWNLOAD
     importing
       !IV_MESSAGE type ref to IF_APC_WSP_MESSAGE .
@@ -57,7 +57,8 @@ interface ZIF_EEZZ_TABLE
   methods DO_NAVIGATE
     importing
       !WHERE type INT4
-      !POS type INT4 optional .
+      !POS type INT4 optional
+      !PATH type STRING optional .
   methods HAS_CHANGED
     returning
       value(RV_HAS_CHANGED) type XFELD .
