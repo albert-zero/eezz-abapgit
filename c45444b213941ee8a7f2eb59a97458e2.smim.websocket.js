@@ -10,7 +10,17 @@
 var eezzWebSocket;
 var eezzArguments   = "";
   
-document.onload = eezzConnect();
+document.onload = onLoadDelay();
+// window.onload = eezzConnect();
+
+function onLoadDelay() {
+	if (document.querySelector('body') != null) {
+		eezzConnect();
+	}
+	else {		
+		setTimeout( function() { eezzConnect() }, 10 );
+	}
+}
 
 /* ------------------------------------------------------------------------------- */
 /* ------------------------------------------------------------------------------- */
@@ -80,16 +90,17 @@ var eezzAgent = {
                 'context' : xTable.getElementsByTagName('TBODY'),
             };
             
-            if (aJsonArg.current.context.length == 0 ||
-                aJsonArg.updnew.context.length  == 0) {
+            if (aJsonArg.current.context.length == 0) {
                 return;
             }
             aJsonArg.current.context  = aJsonArg.current.context[0];
             aJsonArg.current.elements = aJsonArg.current.context.getElementsByTagName('TD');
             
-            aJsonArg.updnew.context   = aJsonArg.updnew.context[0];
-            aJsonArg.updnew.filter    = aJsonArg.updnew.context.getElementsByTagName('TD');
-            aJsonArg.updnew.elements  = aJsonArg.updnew.filter;
+            if (aJsonArg.updnew.context.length > 0) {
+            	aJsonArg.updnew.context   = aJsonArg.updnew.context[0];
+            	aJsonArg.updnew.filter    = aJsonArg.updnew.context.getElementsByTagName('TD');
+            	aJsonArg.updnew.elements  = aJsonArg.updnew.filter;
+            }
             
             // Update function could only called once for a given cycle
             aJsonArg['update'] = (                     
@@ -99,6 +110,10 @@ var eezzAgent = {
                     return function() {
                         if (aDone) {
                             return;
+                        }
+                        
+                        if (aJsonArg.updnew.context.length == 0) {
+                        	aJsonArg.updnew = aJsonArg.current;
                         }
                         
                         var xParent = aJsonContext.current.context.parentNode;
@@ -115,6 +130,7 @@ var eezzAgent = {
                             xParent.replaceChild(aJsonContext.updnew.footer[0], aJsonContext.current.footer[0]);
                             // aJsonContext.current.footer[0].replaceWith(aJsonContext.updnew.footer[0]);
                         }
+                        xParent.deleteCaption();
                         aJsonContext.current.elements.length = 0;
                         aDone = true;
                     }
@@ -148,8 +164,8 @@ var eezzAgent = {
             }
             else {
                 try {
-                    // var xxobj = eval("( myOwn.circle )");
-                    // var xxobj     = window["myOwn"];
+                	var aGenerator = eval("( " + xCommand + "( aJsonArg, xCmdArgs ) )");
+                    eezzAgent.runAnimation( new Date().getTime(), aGenerator, xCmdArgs );                    
                    //  xxobj.circle( xJsonArgs );
                } catch (e) {
                    alert(e.message);
@@ -342,12 +358,24 @@ var eezzAgent = {
             xBackgrd = xEx.message;
         }
     },
+    
+    includeHTML: function (aElement, aInclude) {
+        xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function() {
+          if (this.readyState == 4) {
+            if (this.status == 200) {aElement.innerHTML = this.responseText;}
+            if (this.status == 404) {aElement.innerHTML = "Page not found.";}
+          }
+        }
+        xhttp.open("GET", aInclude, true);
+        xhttp.send();
+    },
 }
 
 /* ------------------------------------------------------------------------------- */
 /* ------------------------------------------------------------------------------- */
 function eezzConnect() {
-    eezzWebSocket   = new WebSocket(gSocketAddr);
+	eezzWebSocket   = new WebSocket(gSocketAddr);
     
     eezzWebSocket.onopen = function() { 
         var aParser   = document.createElement('a');
@@ -355,9 +383,25 @@ function eezzConnect() {
         var aJson     = {"path": aParser.pathname, "args": eezzArguments};
         var aDocStr   = document.documentElement.innerHTML;
         var aBodyPos  = aDocStr.indexOf("<body");
-        var aJson     = {"path": aParser.pathname, "args": eezzArguments, "document": aDocStr.substr(aBodyPos)}; 
+        var aJson;
         
-        eezzWebSocket.send(JSON.stringify(aJson));
+        if (aBodyPos > 0) {
+            var aMsgHtml = '';
+            var aMsgName = '';
+            var aMsgLine = document.querySelector('table[data-eezz-template="database"]');
+            if (aMsgLine) {
+            	aMsgHtml = aMsgLine.outerHTML;
+            	aMsgName = aMsgLine.getAttribute('name');
+            }  
+            aJson = {
+               "path"    : aParser.pathname, 
+               "args"    : eezzArguments, 
+               "document": aDocStr.substring(aBodyPos),
+               "msgobj"  : aMsgHtml,
+               "msgname" : aMsgName 
+            };
+            eezzWebSocket.send(JSON.stringify(aJson));
+        }
     }
     
     /* Error handling */
@@ -430,7 +474,7 @@ function eezzConnect() {
 
         /* update fragments: insert values */
         for (xKeyElement in aJson.update) {
-            if (xKeyElement.endsWith('.script')) {
+            if (xKeyElement.indexOf('.script') > 0) {
                 xDestination  = xKeyElement.split('.');
                 var xKeyHtml  = xDestination[0] + '.innerHTML';
                 var xJsonArg  = {};
@@ -440,7 +484,11 @@ function eezzConnect() {
                     break;
                 }
                 
-                xJsonScript = JSON.parse( decodeURIComponent( aJson.update[xKeyElement] ));
+                try {
+                	xJsonScript = JSON.parse( decodeURIComponent( aJson.update[xKeyElement] ));
+                } catch (xExceptions) {
+                	continue;
+                }
                 xJsonArg    = {
                     'name'   : xDestination[0], 
                     'context': xDstElement[0], 
@@ -581,13 +629,17 @@ function eezzTreeExCo(aElement) {
     if (xTreeNode.className.indexOf('eezzTreeNode') < 0) {
         return true;
     }
-    xTreeHead = xTreeNode.getElementsByClassName('eezzTreeHead');
-    if (xTreeHead.length == 0) {
-        return true;
+    if (xTreeNode.nextSibling == null) {
+    	return true;
     }
-    xTreeBody = xTreeHead[0].getElementsByTagName('TR')[0];
-    xTreeNode.innerHTML = xTreeBody.innerHTML;
-
+    if (xTreeNode.nextSibling.className == null) {
+    	return true;
+    }
+    if (xTreeNode.nextSibling.className.indexOf('eezzTreeHead') < 0) {
+    	return true;
+    }
+    
+    xTreeNode.parentNode.removeChild(xTreeNode.nextSibling);    
     var  xFlipElements;
     var  xInx;
     xFlipElements = aElement.getElementsByClassName('eezzClosed');
@@ -606,47 +658,59 @@ function eezzTreeExCo(aElement) {
 function eezzTreeInsert(aElementId, aNodeElement) {
     // Find tree node by id tag element tr
     var aElement     = document.getElementsByName(aElementId)[0];
-    var xExpanded    = aElement.getAttribute('eezz-tree-expanded');    
-    
-    if (xExpanded == 'expanded') {
-        eezzTreeExCo(aElement);
-    }
-    if (aElement.nodeName != 'TR') {
-        return;
-    }
     
     // The new element should take the entire place
     var aCols = aElement.getElementsByTagName('td').length.toString()
+
     // Save the header and clear element for new entry
-    var aTreeNodeHdr = aElement.innerHTML;
-    var aBodyInx     = aNodeElement.indexOf('<tbody'); 
-    aElement.innerHTML = '';
+    // var aTreeNodeHdr = aElement.innerHTML;
+    // aElement.innerHTML = '';
         
     // Create a new entry
-    var xTd         = document.createElement('td');
-    var xTableHead  = document.createElement('table');
-    var xTableBody  = document.createElement('table');
-            
-    xTableHead.innerHTML = aTreeNodeHdr;
-    xTableBody.innerHTML = aNodeElement.substr(aBodyInx);
+    var aBodyStart  = aNodeElement.indexOf('<tbody'); 
+    var xParent     = aElement.parentNode;
+    var xTableRow   = document.createElement('tr');    // New entry in table 
+    var xTd         = document.createElement('td');    // This will colspan the entire row
+    var xTdFormat   = document.createElement('td');    // This will format the tree
     
-    xTd.setAttribute('colspan', aCols);
-    xTd.appendChild(xTableHead);
-    xTd.appendChild(xTableBody);                
-    aElement.appendChild(xTd);
+    xTd.setAttribute('colspan', 100);
+    xTableRow.appendChild(xTd);
+    xTableRow.appendChild(xTdFormat);
+    xTableRow.setAttribute('class', 'eezzTreeNode eezzTreeHead');
+    xTableRow.style.position = 'relative';
     
-    xTableHead.setAttribute('class', 'eezzTreeHead');
+    var xTableBody   = document.createElement('table'); // Container for the node element
+    var xTBody; 
+    
+    xTd.appendChild(xTableBody);
     xTableBody.setAttribute('class', 'eezzTreeBody');
-    aElement.setAttribute('eezz-tree-expanded', 'expanded');
-    xTableHead.setAttribute('eezz-tree-expanded', 'expanded');
+    xTableBody.innerHTML = aNodeElement.substr(aBodyStart);
+    
+    xTBody = xTableBody.querySelector('tbody');
+        
+    if (xTBody.getAttribute('name')) {
+    	var xBodyName = xTBody.getAttribute('name');
+    	xTBody.removeAttribute('name');
+    	xTableBody.setAttribute('name', xBodyName);
+        //if (aElement.getAttribute('data-eezz-path')) {
+    	//    xTableBody.setAttribute('data-eezz-path', aElement.getAttribute('data-eezz-path') + '/' + xTableName);
+    	//}
+    }
+    
+    xParent.insertBefore( xTableRow, aElement.nextSibling );
+    
+    var xMenus = xTableBody.getElementsByClassName('eezzMenuDialog');
+    if (xMenus.length > 0) {
+        xTableRow.setAttribute('class', 'eezzTreeNode eezzTreeHead eezzMenuDialog');    	
+    }
     
     var  xFlipElements;
     var  xInx;
-    xFlipElements = xTableHead.getElementsByClassName('eezzClosed');
+    xFlipElements = aElement.getElementsByClassName('eezzClosed');
     for (xInx = 0; xInx < xFlipElements.length; xInx++) {
         xFlipElements[xInx].style.display = 'none';
     } 
-    xFlipElements = xTableHead.getElementsByClassName('eezzOpend');
+    xFlipElements = aElement.getElementsByClassName('eezzOpend');
     for (xInx = 0; xInx < xFlipElements.length; xInx++) {
         xFlipElements[xInx].style.display = 'initial';
     } 
@@ -784,21 +848,62 @@ function easyClick(aEvent, aElement) {
         // Close all menu dialogs of this tree node
     	// 1. Find the common parent 
     	// 2. Find all open dialog elements on foreign trees paths
-        for (xNodeElem = aTreeElem.parentNode; xNodeElem != null; xNodeElem = xNodeElem.parentNode) {
-            if (xNodeElem.className && xNodeElem.className.indexOf('eezzTreeNode') >= 0) {
-               var aMenuNodes = xNodeElem.getElementsByClassName('eezzMenuDialog');
-        	   for (var i = 0; i < aMenuNodes.length; i++) {
-        		   for (var xMenuParent = aMenuNodes[i].parentNode.parentNode; xMenuParent != null; xMenuParent = xMenuParent.parentNode) {
-        			   if (xMenuParent.className.indexOf('eezzTreeNode') >= 0) {
-        				  if (xMenuParent != aTreeElem) { 
-        				      eezzTreeExCo(xMenuParent);
-        		          }
-        		          break;
-        			   }
-        		   }
-               }
-               break;
-            }
+        if (aTreeElem.className.indexOf('eezzMenuDialog') > 0) {
+        	for (xNodeElem = aTreeElem.parentNode; xNodeElem != null; xNodeElem = xNodeElem.parentNode) {
+                if (xNodeElem.className.indexOf('eezzMenuDialog') > 0) {
+                	xNodeElem.remove();
+                	break;
+                }        		
+        	}
+        }
+        
+        var xMenuNodes = aTreeElem.parentNode.querySelectorAll('.eezzTreeHead.eezzMenuDialog');
+        for (var i = 0; i < xMenuNodes.length; i++) {
+        	if (xMenuNodes[i] == aTreeElem.nextSibling) {
+        		xMenuNodes[i].remove();
+        		return;
+        	}
+    		xMenuNodes[i].remove();
+        }
+        
+        if (aTreeElem.parentNode.className.indexOf('eezzSelectable') >= 0) {
+        	var i;
+        	var aStartElem;
+        	var xSelectInx;
+        	var xClassNames   = aTreeElem.className.split(' ');
+        	var xSelecteNodes = aTreeElem.parentNode.querySelectorAll('.eezzSelected');
+        	
+        	if (aEvent.ctrlKey) {   
+        		xSelecteNodes.length = 0;        		
+        	}
+        	
+        	if (aEvent.shiftKey) {        		
+        		var xTrElements =  aTreeElem.parentNode.querySelectorAll('tr');
+        		// select all entries from the selected node to the current node
+        		for (aElem in xTrElements) {
+        			if (aElem === xSelecteNodes[0] || aElem === aTreeElem) {
+        				if (aStartElem) {
+        					break;
+        				}
+        				aStartElem = aElem;
+        			}
+        			if (aStartElem && aElem.className.indexOf('eezzSelected') < 0) {
+        				aElem.className.concat(' eezzSelected');
+        			}
+        		}
+        		xSelecteNodes.length = 0;
+        	}
+        	
+	        for (i = 0; i < xSelecteNodes.length; i++) {
+	        	// remove selection entries
+	        	xClassNames = xSelecteNodes[i].className.split(' ');
+	        	xSelectInx  = xClassNames.indexOf('eezzSelected'); 
+				xSelecteNodes[i].className = xClassNames.splice( xSelectInx, 1 ).join(' ');;
+	        }
+	        
+	        if (aTreeElem.className.indexOf('eezzSelected') < 0) {
+	        	aTreeElem.className.concat(' eezzSelected');
+	        }
         }
     }
     
@@ -840,18 +945,17 @@ function easyClick(aEvent, aElement) {
                 var aNewKey  = xUpdDest;
                 var aNewVal  = aJson.update[ xUpdDest ];
                 
-                if (aNewKey.indexOf('.innerHTML') >= 0 && xIsTreeNode) {
+                if (aNewVal instanceof Object) {
+                	aNewVal  = JSON.stringify(aNewVal);
+                }
+                
+                if (aNewKey.indexOf('.innerHTML') >= 0 && xIsTreeNode && aElement.tagName == 'TD') {
                     if (!eezzTreeExCo(aTreeElem)) {
                         return;
                     }                	
                 }
                 
                 if (aNewKey.indexOf('this.') >= 0) {
-                	if (aNewKey.indexOf('.innerHTML') >= 0) {
-                	    if (!eezzTreeExCo(aTreeElem)) {
-                            return;
-                        }
-                	}
                     xSplitArgs = aNewKey.split('.');
                     aNewKey    = aTreeElem.getAttribute('name') + '.' + xSplitArgs[1];                    
                 }
@@ -889,6 +993,11 @@ function easyClick(aEvent, aElement) {
                     
                     if (xJsnAction['eezzAgent.assign'] && xSourceElem.className == 'eezzTreeTemplate') {
                         xJsnAction = xJsnAction['eezzAgent.assign'];
+                        
+                        if (aJson.callback) { 
+	                        xJsonPrepare   = {'callback': aJson.callback };
+	                        eezzWebSocket.send(JSON.stringify(xJsonPrepare));
+                        }
                         
 	                    aJson.callback = {};
                         for (xMethod in xJsnAction) {

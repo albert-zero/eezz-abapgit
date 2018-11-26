@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_SHMA" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <AREA_ATTRIBUTES>
+    <AREA_NAME>ZCL_EEZZ_SHM</AREA_NAME>
+    <DESCRIPT>shared memory access</DESCRIPT>
+    <ROOT>ZCL_EEZZ_DRIVE</ROOT>
+    <AUTO_BUILD>X</AUTO_BUILD>
+    <HAS_VERSIONS>X</HAS_VERSIONS>
+    <AUTO_BUILD_CLASS>ZCL_EEZZ_DRIVE</AUTO_BUILD_CLASS>
+    <LIFE_CONTEXT>109200001</LIFE_CONTEXT>
+    <PROPAGATION_KIND>159200000</PROPAGATION_KIND>
+    <DISPLACE_KIND>1208200200</DISPLACE_KIND>
+    <BUILD_KIND>1107197101</BUILD_KIND>
+   </AREA_ATTRIBUTES>
+  </asx:values>
+ </asx:abap>
+</abapGit>

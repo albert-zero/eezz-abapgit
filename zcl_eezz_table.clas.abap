@@ -18,8 +18,6 @@ public section.
     for ZIF_EEZZ_TABLE~MT_UPDATE .
   aliases M_SELECTED
     for ZIF_EEZZ_TABLE~M_SELECTED .
-  aliases M_STATUS
-    for ZIF_EEZZ_TABLE~M_STATUS .
   aliases M_TABLE_DDIC
     for ZIF_EEZZ_TABLE~M_TABLE_DDIC .
   aliases M_TABLE_NAME
@@ -34,16 +32,15 @@ public section.
     for ZIF_EEZZ_TABLE~DO_SELECT_DATABASE .
   aliases DO_SORT
     for ZIF_EEZZ_TABLE~DO_SORT .
+  aliases GET_DICTIONARY
+    for ZIF_EEZZ_TABLE~GET_DICTIONARY .
   aliases GET_HASH
     for ZIF_EEZZ_TABLE~GET_HASH .
   aliases GET_SELECTED_OBJ
     for ZIF_EEZZ_TABLE~GET_SELECTED_OBJ .
-  aliases GET_STATUS
-    for ZIF_EEZZ_TABLE~GET_STATUS .
   aliases SEND_MESSAGE_PCP
     for ZIF_EEZZ_TABLE~SEND_MESSAGE_PCP .
-  aliases SET_STATUS
-    for ZIF_EEZZ_TABLE~SET_STATUS .
+
 
   methods CONSTRUCTOR
     importing
@@ -70,8 +67,8 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
       x_tabledescr  type ref to cl_abap_tabledescr,
       x_table_comps type cl_abap_structdescr=>component_table.
 
-    zif_eezz_table~m_visible_items = 10.
-    zif_eezz_table~m_visible_block = 10.
+    zif_eezz_table~m_visible_items = 30.
+    zif_eezz_table~m_visible_block = 30.
     zif_eezz_table~m_offset        =  0.
     zif_eezz_table~m_topdown       =  1.
     m_resort                       =  0.
@@ -85,10 +82,12 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
       ( c_key = 'table_prev'     c_value = '-2' )
       ( c_key = 'table_current'  c_value =  '0' )
       ( c_key = 'innerHTML'      c_value = 'innerHTML')
-      ( c_key = 'table_path'     c_value =  'id000000' )
+      ( c_key = 'table_path'     c_value =  '/' )
       ( c_key = 'table_items'    c_value =  '20' )
       ( c_key = 'tree_path'      c_value =  ''  )
       ( c_key = 'table_key'      c_value =  '/' )
+      ( c_key = 'table_type'     c_value =  '' )
+      ( c_key = 'table_header'   c_value =  '' )
       ( c_key = 'file_loader'    c_value =  '' )
     ).
 
@@ -132,6 +131,7 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
       x_wa_column-c_sort       = 0.
       x_wa_column-c_value      = <fs_wac>-name.
       x_wa_column-c_position   = sy-tabix.
+      x_wa_column-c_type       = <fs_wac>-type->type_kind.
 
       if line_exists( lt_table_fields[ fieldname = <fs_wac>-name ] ).
         x_wa_column-c_value = lt_table_fields[ fieldname = <fs_wac>-name ]-fieldtext.
@@ -194,8 +194,8 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
   endmethod.
 
 
-  method zif_eezz_table~do_select.
-  endmethod.
+method zif_eezz_table~do_select.
+endmethod.
 
 
   method zif_eezz_table~do_select_database.
@@ -321,13 +321,47 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
 
     data(x_sort) = mt_column_names[ index ]-c_sort.
 
+    field-symbols <fs_table> type any table.
+    assign mt_table->* to <fs_table>.
+
     if x_sort = 0.
       x_sort = -1.
     endif.
 
-    x_sort = x_sort * -1.
+    x_sort     = x_sort * -1.
+    m_selected = 1.
+    if m_table_ddic is initial.
+      data(x_colname) = mt_column_names[ index ]-c_field_name.
+      if x_sort = 1.
+        sort <fs_table> by value abap_sortorder_tab(
+          ( name = x_colname descending = ' ' ) ).
+      else.
+        sort <fs_table> by value abap_sortorder_tab(
+          ( name = x_colname descending = 'X' ) ).
+      endif.
+
+      " Create a new filter table
+      field-symbols <fs_table_filter> type any table.
+      field-symbols <fs_table_orig>   type any table.
+      assign mt_table->* to <fs_table_orig>.
+      data x_tabledescr  type ref to cl_abap_tabledescr.
+      data x_structdescr type ref to cl_abap_structdescr.
+      " x_structdescr ?= cl_abap_typedescr=>describe_by_data( mt_table ).
+      x_tabledescr  ?= cl_abap_tabledescr=>describe_by_data( <fs_table_orig> ).
+      create data zif_eezz_table~mt_table_filter type handle x_tabledescr.
+      assign zif_eezz_table~mt_table_filter->* to <fs_table_filter>.
+
+      "data(x_cond) = |FILENAME cs 'dev_'|.
+      " ==> regex is a condition for all fields
+      " try ... if successfull use new fs_table_filter for view
+      "loop at <fs_table_orig>  assigning field-symbol(<fs_wa>) where (x_cond).
+      "  insert <fs_wa> into table <fs_table_filter>.
+      "endloop.
+    else.
+      me->do_select_database( ).
+    endif.
     mt_column_names[ index ]-c_sort = x_sort.
-    me->do_select_database( ).
+
   endmethod.
 
 
@@ -342,18 +376,19 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
 
 
   method ZIF_EEZZ_TABLE~GET_HASH.
-    rv_hash = zcl_eezz_helper=>create_hash_for_table_key( it_rows = ref #( mt_column_names ) iv_line = iv_line iv_path = iv_path ).
+    rv_hash = zcl_eezz_helper=>create_hash_for_table_key( it_rows = ref #( mt_column_names ) iv_line = iv_line iv_path = iv_path iv_clear = iv_clear ).
   endmethod.
 
 
   method zif_eezz_table~get_row.
-    data ls_cell  type zstr_cell.
-
+    data ls_filtered  type abap_bool value 'X'.
+    data ls_cell      type zstr_cell.
     data x_typedescr  type ref to cl_abap_tabledescr.
     data x_linedescr  type ref to cl_abap_structdescr.
+    data x_index      type i.
 
-    data(x_index) = iv_index.
-    m_selected = 0.
+    x_index       = iv_index.
+    m_selected    = 0.
 
     field-symbols <fs_table> type standard table.
     field-symbols <fs_line>  type any.
@@ -365,7 +400,6 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
 
     assign mt_table->* to <fs_table>.
     clear  mt_row.
-
 
     x_typedescr   ?= cl_abap_tabledescr=>describe_by_data( <fs_table> ).
     x_linedescr   ?= x_typedescr->get_table_line_type( ).
@@ -416,12 +450,12 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
     endif.
 
     m_selected = x_index.
-    data: x_genkey type string.
-    get reference of mt_column_names into data(x_ref_row).
 
     data x_path type string. " mt_dictionary[ c_key = |tree_path| ]-c_value.
     data(x_path_calc) = mt_dictionary[ c_key = |tree_path| ]-c_value.
+    get reference of mt_column_names into data(x_ref_row).
 
+    data: x_genkey type string.
     x_genkey        = zcl_eezz_helper=>create_hash_for_table_key( iv_path = x_path it_rows = x_ref_row iv_line = <fs_line> iv_clear = abap_true ).
     data(x_genpath) = zcl_eezz_helper=>create_hash_for_table_key( iv_path = x_path it_rows = x_ref_row iv_line = <fs_line> iv_clear = abap_true ).
     data(x_locpath) = zcl_eezz_helper=>create_hash_for_table_key( it_rows = x_ref_row iv_line = <fs_line> iv_clear = abap_true ).
@@ -442,9 +476,10 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
         ls_cell-c_value      = <fs_value>.
         ls_cell-c_field_name = x_field.
         ls_cell-c_genkey     = |{ x_genkey }.{ x_field }|.
+        ls_cell-c_type       = x_wa_col-c_type.
 
         try.
-            if x_linedescr->components[ name = x_wa_col-c_field_name ]-type_kind co 'D'.
+            if ls_cell-c_type co 'D'.
               call function 'CONVERT_DATE_TO_EXTERNAL' exporting date_internal = <fs_value> importing date_external = ls_cell-c_value.
             endif.
           catch cx_root.
@@ -471,11 +506,6 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
 endmethod.
 
 
-  method ZIF_EEZZ_TABLE~GET_STATUS.
-    rt_status = m_status.
-  endmethod.
-
-
   METHOD zif_eezz_table~get_update.
 
     get reference of mt_update into rt_update.
@@ -490,24 +520,40 @@ endmethod.
 
   method zif_eezz_table~on_download.
 
-    rv_update = new ztty_update( ).
+    rv_message = new zcl_eezz_message( ).
 
     try.
         if iv_message->get_message_type( ) = iv_message->co_message_type_text.
-          data(x_json)      = new zcl_eezz_json( iv_json = iv_message->get_text( ) ).
-          data(x_progress)  = x_json->get_value( |progress| ).
-          data(x_filesize)  = x_json->get_value( |file/size| ).
-          data(x_chunksize) = x_json->get_value( |chunkSize| ).
-          data(x_sequence)  = x_json->get_value( |file/sequence| ).
+          data(x_json)       = new zcl_eezz_json( iv_json = iv_message->get_text( ) ).
+          data(x_progress)   = x_json->get_value( |progress| ).
+          data(x_chunksize)  = x_json->get_value( |chunkSize| ).
+          data(x_filesize)   = x_json->get_value( |file/size| ).
+          data(x_filename)   = x_json->get_value( |file/name| ).
+          data(x_transfered) = x_json->get_value( |file/chunkSize| ).
+          data(x_sequence)   = x_json->get_value( |file/sequence| ).
 
           data(x_prog_seq)  = ( x_sequence + 1 ) * ( x_chunksize / x_filesize ) * 100.
           x_prog_seq        = nmin( val1 = x_prog_seq  val2 = 100 ).
-          rv_update->* = value #(
-            ( c_key = |{ x_progress }.innerHTML|   c_value = |{ x_prog_seq }%| )
-            ( c_key = |{ x_progress }.style.width| c_value = |{ x_prog_seq }%| )
-          ).
+
+          rv_message->add( iv_key = |{ x_progress }.innerHTML|   iv_value = |{ x_prog_seq }%| ).
+          rv_message->add( iv_key = |{ x_progress }.style.width| iv_value = |{ x_prog_seq }%| ).
         endif.
       catch cx_apc_error into data(x_exception).
+        rv_message->add( iv_status = 500 iv_key = |OnDownload| iv_exception = x_exception ).
+        raise exception x_exception.
+    endtry.
+  endmethod.
+
+
+  method zif_eezz_table~prepare_download.
+    try.
+        if iv_message->get_message_type( ) = iv_message->co_message_type_text.
+          zcl_eezz_message=>set_request( iv_message->get_text( ) ).
+          zcl_eezz_message=>set_status( 100 ).
+        endif.
+      catch cx_root into data(x_exception).
+        zcl_eezz_message=>add( iv_status = 500 iv_key = |OnDownload| iv_exception = x_exception ).
+        raise exception x_exception.
     endtry.
   endmethod.
 
@@ -532,13 +578,5 @@ endmethod.
         data(x_error_mv) = x_exc_move->get_text( ).
         cl_demo_output=>display( x_error_mv ).
     endtry.
-  endmethod.
-
-
-  method zif_eezz_table~set_status.
-    if m_status is not bound.
-      m_status = new zcl_eezz_json( ).
-    endif.
-    m_status->join( iv_key = iv_key iv_value = iv_value ).
   endmethod.
 ENDCLASS.

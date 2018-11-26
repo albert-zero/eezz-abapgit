@@ -62,12 +62,6 @@
     </SEOCOMPOTX>
     <SEOCOMPOTX>
      <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
-     <CMPNAME>GET_STATUS</CMPNAME>
-     <LANGU>E</LANGU>
-     <DESCRIPT>retruns the current status</DESCRIPT>
-    </SEOCOMPOTX>
-    <SEOCOMPOTX>
-     <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
      <CMPNAME>HAS_CHANGED</CMPNAME>
      <LANGU>E</LANGU>
      <DESCRIPT>Check if filter settings have changed</DESCRIPT>
@@ -98,6 +92,12 @@
     </SEOCOMPOTX>
     <SEOCOMPOTX>
      <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
+     <CMPNAME>MT_TABLE_FILTER</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>fiiltered version of mt_table</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
      <CMPNAME>MT_UPDATE</CMPNAME>
      <LANGU>E</LANGU>
      <DESCRIPT>Update response for eezz requests</DESCRIPT>
@@ -113,12 +113,6 @@
      <CMPNAME>M_SELECTED</CMPNAME>
      <LANGU>E</LANGU>
      <DESCRIPT>current selected row</DESCRIPT>
-    </SEOCOMPOTX>
-    <SEOCOMPOTX>
-     <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
-     <CMPNAME>M_STATUS</CMPNAME>
-     <LANGU>E</LANGU>
-     <DESCRIPT>status</DESCRIPT>
     </SEOCOMPOTX>
     <SEOCOMPOTX>
      <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
@@ -167,12 +161,6 @@
      <CMPNAME>SEND_MESSAGE_PCP</CMPNAME>
      <LANGU>E</LANGU>
      <DESCRIPT>Creates and sends an AMC message</DESCRIPT>
-    </SEOCOMPOTX>
-    <SEOCOMPOTX>
-     <CLSNAME>ZIF_EEZZ_TABLE</CLSNAME>
-     <CMPNAME>SET_STATUS</CMPNAME>
-     <LANGU>E</LANGU>
-     <DESCRIPT>sets an error or return status</DESCRIPT>
     </SEOCOMPOTX>
    </DESCRIPTIONS>
   </asx:values>

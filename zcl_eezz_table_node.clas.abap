@@ -1,74 +1,75 @@
-class ZCL_EEZZ_TABLE_NODE definition
+class zcl_eezz_table_node definition
   public
   final
   create public .
 
-public section.
+  public section.
 
-  methods CONSTRUCTOR
-    importing
-      !IO_NODE type ref to IF_IXML_NODE
-      !IT_GLOBALS type ref to ZTTY_SYMBOLS
-      !IO_EEZZ_TBL type ref to ZIF_EEZZ_TABLE .
-  methods GET
-    returning
-      value(EV_TABLE_NODE) type ref to IF_IXML_NODE .
-  methods CREATE_BODY
-    importing
-      !IV_TABLE type ref to IF_IXML_NODE
-      !IV_NODE type ref to IF_IXML_NODE
-      !IV_PARENT type ref to IF_IXML_NODE
-    returning
-      value(RT_TABLE) type ref to ZTTY_EEZZ_ROW .
+    methods constructor
+      importing
+        !iv_table_name type string optional
+        !io_node       type ref to if_ixml_node
+        !it_globals    type ref to ztty_symbols
+        !io_eezz_tbl   type ref to zif_eezz_table .
+    methods get
+      returning
+        value(ev_table_node) type ref to if_ixml_node .
+    methods create_body
+      importing
+        !iv_table       type ref to if_ixml_node
+        !iv_node        type ref to if_ixml_node
+        !iv_parent      type ref to if_ixml_node
+      returning
+        value(rt_table) type ref to ztty_eezz_row .
   protected section.
-private section.
+  private section.
 
-  data MT_RANGE type ref to ZTTY_EEZZ_ROW .
-  data M_DICTIONARY type ref to ZTTY_DICTIONARY .
-  data M_TABLE_NAME type STRING .
-  data M_TBL_EEZZ type ref to ZIF_EEZZ_TABLE .
-  data M_TBL_GLOBAL type ref to ZTTY_SYMBOLS .
-  data M_TABLE_NODE type ref to IF_IXML_NODE .
+    data mt_range type ref to ztty_eezz_row .
+    data m_dictionary type ref to ztty_dictionary .
+    data m_table_name type string .
+    data m_tbl_eezz type ref to zif_eezz_table .
+    data m_tbl_global type ref to ztty_symbols .
+    data m_table_node type ref to if_ixml_node .
 
-  methods CREATE_COLUMN_FILTER
-    importing
-      !IV_FILTER type STRING
-      !IT_COLUMNS type ref to ZTTY_EEZZ_ROW .
-  methods ADD_ONCLICK_4_HEADER
-    importing
-      !IV_PARENT type ref to IF_IXML_NODE
-      !IV_NODE type ref to IF_IXML_NODE
-      !IV_IDX type INT4 .
-  methods ADD_ONCLICK_4_ROW
-    importing
-      !IV_NODE type ref to IF_IXML_NODE
-      !IV_JSON type ref to ZCL_EEZZ_JSON
-      !IV_IDX type INT4
-      !IV_PATH type STRING optional .
-  methods ADD_ONCLICK_EVENT
-    importing
-      !IV_NODE type ref to IF_IXML_NODE .
-  methods CREATE_FOOTER
-    importing
-      !IV_NODE type ref to IF_IXML_NODE
-      !IV_PARENT type ref to IF_IXML_NODE .
-  methods CREATE_HEADER
-    importing
-      !IV_NODE type ref to IF_IXML_NODE
-      !IV_PARENT type ref to IF_IXML_NODE .
-  methods CREATE_ROW
-    importing
-      !IV_NODE type ref to IF_IXML_NODE
-      !IV_PARENT type ref to IF_IXML_NODE
-      !IV_ROW type ref to ZTTY_EEZZ_ROW
-    returning
-      value(RT_REPLACEMENT) type ref to ZTTY_EEZZ_ROW .
-  methods CREATE_TILE
-    importing
-      !IV_NODE type ref to IF_IXML_NODE
-      !IV_PARENT type ref to IF_IXML_NODE
-      !IV_ROW type ref to ZTTY_EEZZ_ROW
-      !IV_INDEX type INT4 .
+    methods create_column_filter
+      importing
+        !iv_filter  type string
+        !it_columns type ref to ztty_eezz_row .
+    methods add_onclick_4_header
+      importing
+        !iv_parent type ref to if_ixml_node
+        !iv_node   type ref to if_ixml_node
+        !iv_idx    type int4 .
+    methods add_onclick_4_row
+      importing
+        !iv_node type ref to if_ixml_node
+        !iv_json type ref to zcl_eezz_json
+        !iv_idx  type int4
+        !iv_path type string optional .
+    methods add_onclick_event
+      importing
+        !iv_node type ref to if_ixml_node .
+    methods create_footer
+      importing
+        !iv_node   type ref to if_ixml_node
+        !iv_parent type ref to if_ixml_node .
+    methods create_header
+      importing
+        !iv_node   type ref to if_ixml_node
+        !iv_parent type ref to if_ixml_node .
+    methods create_row
+      importing
+        !iv_node              type ref to if_ixml_node
+        !iv_parent            type ref to if_ixml_node
+        !iv_row               type ref to ztty_eezz_row
+      returning
+        value(rt_replacement) type ref to ztty_eezz_row .
+    methods create_tile
+      importing
+        !iv_node   type ref to if_ixml_node
+        !iv_parent type ref to if_ixml_node
+        !iv_row    type ref to ztty_eezz_row
+        !iv_index  type int4 .
 ENDCLASS.
 
 
@@ -122,6 +123,10 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
     data(x_path)      = cast if_ixml_element( m_table_node )->get_attribute( 'data-eezz-path' ).
     data(x_class)     = cast if_ixml_element( m_table_node )->get_attribute( 'class' ).
 
+    if iv_table_name is not initial.
+      m_table_name   = iv_table_name.
+    endif.
+
     data(x_processor) = new cl_xslt_processor( ).
     x_processor->set_source_node( io_node ).
     x_processor->set_expression( |node()| ).
@@ -139,6 +144,10 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
         if x_path is not initial and x_class cs |eezzTreeTemplate|.
           cast if_ixml_element( x_refnode )->set_attribute_ns( name = |class|          value = |eezzTreeNode| ).
           cast if_ixml_element( x_refnode )->set_attribute_ns( name = |data-eezz-path| value = x_path  ).
+
+          if iv_table_name is not initial.
+            cast if_ixml_element( x_refnode )->set_attribute_ns( name = |name |        value = m_table_name  ).
+          endif.
         endif.
         m_table_node->append_child( x_refnode ).
         me->create_body( iv_table = io_node iv_parent = x_refnode iv_node = x_next  ).
@@ -151,6 +160,17 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
         m_table_node->append_child( x_refnode ).
         me->create_footer( iv_parent = x_refnode iv_node = x_next  ).
       elseif x_name eq 'caption'.
+        data(x_value) = x_next->get_value( ).
+        find all occurrences of regex '\{([-_a-zA-Z0-9]+)\}' in x_value results data(x_entry).
+        if lines( x_entry ) = 1.
+          data(xx_match_entry) = x_entry[ 1 ].
+          data(xx_match_reg)   = xx_match_entry.
+          data(xx_match_key)   = xx_match_entry-submatches[ 1 ].
+          if line_exists( m_dictionary->*[ c_key = x_value+xx_match_key-offset(xx_match_key-length) ] ).
+            data(xx_match_dict) = m_dictionary->*[ c_key = x_value+xx_match_key-offset(xx_match_key-length) ]-c_value.
+            x_next->set_value( |{ x_value+0(xx_match_reg-offset) }{ xx_match_dict }| ).
+          endif.
+        endif.
         m_table_node->append_child( x_next->clone( ) ).
       endif.
       x_next = x_iterator->get_next( ).
@@ -317,11 +337,11 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
           endif.
         endif.
 
-        if <fs_cw_templ>-c_repl is not bound.
+        if 1 = 1 or <fs_cw_templ>-c_repl is not bound.
           data(x_tr_new_node)  = <fs_cw_templ>-c_node->clone( 0 ).
-          data(x_tr_sub_node)  = <fs_cw_templ>-c_node.
+          data(x_tr_sub_node)  = <fs_cw_templ>-c_node->clone( ).
           <fs_cw_templ>-c_repl = me->create_row( iv_parent = x_tr_new_node iv_node = x_tr_sub_node iv_row = x_table_row ).
-          <fs_cw_templ>-c_node = x_tr_new_node.
+          " <fs_cw_templ>-c_node = x_tr_new_node.
 
           try.
               if x_path is not initial.
@@ -374,20 +394,21 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
 
         if line_exists( x_table_row->*[ c_field_name = '_eezz_row_cell_' ] ).
           x_row_cell = x_table_row->*[ c_field_name = '_eezz_row_cell_' ].
-          cast if_ixml_element( <fs_cw_templ>-c_node )->set_attribute_ns( name = 'name'           value = x_row_cell-c_genkey ).
-          cast if_ixml_element( <fs_cw_templ>-c_node )->set_attribute_ns( name = |data-eezz-path| value = x_row_cell-c_genkey ).
+          " replaced c_node by x_tr_new_node
+          cast if_ixml_element( x_tr_new_node )->set_attribute_ns( name = 'name'           value = x_row_cell-c_genkey ).
+          cast if_ixml_element( x_tr_new_node )->set_attribute_ns( name = |data-eezz-path| value = x_row_cell-c_genkey ).
 
           if line_exists( m_dictionary->*[ c_key = |tree_path| ] ).
             data(x_treepath) = |{ m_dictionary->*[ c_key = |tree_path| ]-c_value }/{ x_row_cell-c_genkey }|.
-            cast if_ixml_element( <fs_cw_templ>-c_node )->set_attribute_ns( name = |data-eezz-path| value = x_treepath ).
+            cast if_ixml_element( x_tr_new_node )->set_attribute_ns( name = |data-eezz-path| value = x_treepath ).
           endif.
 
         endif.
 
-        add_onclick_4_row( iv_node = <fs_cw_templ>-c_node iv_json = <fs_cw_templ>-c_json iv_idx = x_idx iv_path = x_path ).
-        data(x_template_clone) = <fs_cw_templ>-c_node->clone( ).
-
-        " data(xxxdbg) = cast if_ixml_element( x_template_clone )->get_attribute_ns( |class| ).
+        "----add_onclick_4_row( iv_node = <fs_cw_templ>-c_node iv_json = <fs_cw_templ>-c_json iv_idx = x_idx iv_path = x_path ).
+        "----data(x_template_clone) = <fs_cw_templ>-c_node->clone( ).
+        add_onclick_4_row( iv_node = x_tr_new_node iv_json = <fs_cw_templ>-c_json iv_idx = x_idx iv_path = x_path ).
+        data(x_template_clone)     = x_tr_new_node->clone( ).
 
         iv_parent->append_child( x_template_clone ).
       enddo.
@@ -675,7 +696,7 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
       data(x_template) = x_cl_json->get( iv_path = 'display/type' ).
       if x_template is bound.
         data(x_jsonrow)     = x_template->*[ 1 ].
-        x_wac_templ-c_key   = x_jsonrow-c_value.
+        x_wac_templ-c_value = x_jsonrow-c_value.
         x_wac_templ-c_node  = x_next.
 
         append x_wac_templ to x_tbl_templ.
@@ -696,7 +717,7 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
             assign iv_row->*[ c_field_name = x_key c_value = x_jsonrow-c_value ] to <fs>.
             <fs>-c_type = x_key.
             append value #( c_value = x_key c_node = x_next ) to x_tbl_templ.
-          elseif X_JSONROW-C_VALUE cs '*'.
+          elseif x_jsonrow-c_value cs '*'.
             assign iv_row->*[ c_field_name = x_key ] to <fs>.
             <fs>-c_type = x_key.
             append value #( c_value = x_key c_node = x_next ) to x_tbl_templ.

@@ -2,6 +2,7 @@ interface ZIF_EEZZ_TABLE
   public .
 
 
+  data MT_TABLE_FILTER type ref to DATA .
   data MT_TABLE type ref to DATA .
   data MT_COLUMN_NAMES type ZTTY_EEZZ_ROW .
   data MT_DICTIONARY type ZTTY_DICTIONARY .
@@ -14,20 +15,12 @@ interface ZIF_EEZZ_TABLE
   data M_TABLE_NAME type STRING .
   data M_SELECTED type STRING .
   data MT_ROW type ZTTY_EEZZ_ROW .
-  data M_STATUS type ref to ZCL_EEZZ_JSON .
 
-  methods GET_STATUS
-    returning
-      value(RT_STATUS) type ref to ZCL_EEZZ_JSON .
-  methods SET_STATUS
-    importing
-      !IV_KEY type STRING
-      !IV_VALUE type STRING optional .
   methods ON_DOWNLOAD
     importing
       !IV_MESSAGE type ref to IF_APC_WSP_MESSAGE
     returning
-      value(RV_UPDATE) type ref to ZTTY_UPDATE .
+      value(RV_MESSAGE) type ref to ZCL_EEZZ_MESSAGE .
   methods PREPARE_DOWNLOAD
     importing
       !IV_MESSAGE type ref to IF_APC_WSP_MESSAGE .
@@ -64,11 +57,11 @@ interface ZIF_EEZZ_TABLE
       value(RV_HAS_CHANGED) type XFELD .
   methods DO_SORT
     importing
-      !INDEX type INT4 .
+      !INDEX type INT4
+      !REGEX type STRING optional .
   methods DO_SELECT
     importing
       !INDEX type I default 1
-      !PATH type STRING optional
     returning
       value(RT_EEZZ_TABLE) type ref to ZIF_EEZZ_TABLE .
   methods GET_DICTIONARY
@@ -83,6 +76,7 @@ interface ZIF_EEZZ_TABLE
     importing
       !IV_LINE type ANY
       !IV_PATH type STRING optional
+      !IV_CLEAR type ABAP_BOOL optional
     returning
       value(RV_HASH) type STRING .
   methods SEND_MESSAGE_PCP

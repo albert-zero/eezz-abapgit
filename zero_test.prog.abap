@@ -3,14 +3,27 @@
 *&---------------------------------------------------------------------*
 *&
 *&---------------------------------------------------------------------*
-REPORT ZERO_TEST.
 
-data xStr type string value 'test'.
 
-select * from spfli into table @data(xresult) up to 10 rows.
-data(x_message) = cl_ac_message_type_pcp=>create( ).
-x_message->set_field( i_name = |key1| i_value = |value1| ).
-x_message->set_field( i_name = |key2| i_value = |value2| ).
-cl_demo_output=>DISPLAY( x_message->serialize( ) ).
-cl_demo_output=>DISPLAY( xresult ).
-write | \{ "callback": "{ xStr }.do_sort"   | .
+report zero_test.
+
+    types: begin of tstr_line,
+             _eezz_row_cell_ type string,
+             inx             type x length 1,
+             name            type string,
+           end of tstr_line.
+
+    types: tty_table type table of tstr_line with key inx initial size 0.
+    data x_tab type tty_table.
+    data(x_out) = cl_demo_output=>new( ).
+
+    TRY.
+      x_tab[ inx = 1 ] = value #( name = 'test' ).
+    CATCH cx_ai_system_fault.
+    catch cx_root into data(x_ex).
+      x_ex->GET_SOURCE_POSITION( importing PROGRAM_NAME = data(x_prg) source_line = data(x_line) ).
+      x_out->write( |{ x_prg } line: { x_line } { x_ex->get_text( ) }| ).
+    endtry.
+
+
+    x_out->display(  ).
