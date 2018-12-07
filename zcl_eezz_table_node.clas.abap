@@ -1,26 +1,26 @@
-class zcl_eezz_table_node definition
+class ZCL_EEZZ_TABLE_NODE definition
   public
   final
   create public .
 
-  public section.
+public section.
 
-    methods constructor
-      importing
-        !iv_table_name type string optional
-        !io_node       type ref to if_ixml_node
-        !it_globals    type ref to ztty_symbols
-        !io_eezz_tbl   type ref to zif_eezz_table .
-    methods get
-      returning
-        value(ev_table_node) type ref to if_ixml_node .
-    methods create_body
-      importing
-        !iv_table       type ref to if_ixml_node
-        !iv_node        type ref to if_ixml_node
-        !iv_parent      type ref to if_ixml_node
-      returning
-        value(rt_table) type ref to ztty_eezz_row .
+  methods CONSTRUCTOR
+    importing
+      !IV_TABLE_NAME type STRING optional
+      !IO_NODE type ref to IF_IXML_NODE
+      !IT_GLOBALS type ref to ZTTY_SYMBOLS
+      !IO_EEZZ_TBL type ref to ZIF_EEZZ_TABLE .
+  methods GET
+    returning
+      value(EV_TABLE_NODE) type ref to IF_IXML_NODE .
+  methods CREATE_BODY
+    importing
+      !IV_TABLE type ref to IF_IXML_NODE
+      !IV_NODE type ref to IF_IXML_NODE
+      !IV_PARENT type ref to IF_IXML_NODE
+    returning
+      value(RT_TABLE) type ref to ZTTY_EEZZ_ROW .
   protected section.
   private section.
 
@@ -142,11 +142,11 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
       if x_name eq 'tbody'.
         x_refnode = x_next->clone( 0 ).
         if x_path is not initial and x_class cs |eezzTreeTemplate|.
-          cast if_ixml_element( x_refnode )->set_attribute_ns( name = |class|          value = |eezzTreeNode| ).
-          cast if_ixml_element( x_refnode )->set_attribute_ns( name = |data-eezz-path| value = x_path  ).
+          cast if_ixml_element( x_refnode )->set_attribute_ns( name = |class|   value = |eezzTreeNode| ).
+          "-----> cast if_ixml_element( x_refnode )->set_attribute_ns( name = |data-eezz-path| value = x_path  ).
 
           if iv_table_name is not initial.
-            cast if_ixml_element( x_refnode )->set_attribute_ns( name = |name |        value = m_table_name  ).
+            cast if_ixml_element( x_refnode )->set_attribute_ns( name = |name | value = m_table_name  ).
           endif.
         endif.
         m_table_node->append_child( x_refnode ).
@@ -195,6 +195,7 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
     data x_tbl_templ   type table of ttemplates.
     data x_eezz_json   type ref to zcl_eezz_json.
     data x_reference   type ref to if_ixml_node.
+    data x_constpath   type string.
     data: x_num_column type i,
           x_table_row  type ref to ztty_eezz_row,
           x_idx        type i,
@@ -233,11 +234,12 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
       endif.
 
       " Add elements with attributes not having data-eezz-template
+      x_constpath       = |{ m_dictionary->*[ c_key = |tree_path| ]-c_value }/{ m_dictionary->*[ c_key = |table_current| ]-c_value }|.
       data(x_eezz_attr) = x_attributes->get_named_item_ns( 'data-eezz-template' ).
+
       if x_eezz_attr is not bound.
         data(x_class_attr) = cast if_ixml_element( x_next )->get_attribute_ns( 'class' ).
         if x_class_attr cs |eezzTreeNode|.
-          data(x_constpath) = |{ m_dictionary->*[ c_key = |tree_path| ]-c_value }|.
           cast if_ixml_element( x_next )->set_attribute_ns( name = |data-eezz-path| value = x_constpath ).
         endif.
         iv_parent->append_child( x_next ).
@@ -345,7 +347,7 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
 
           try.
               if x_path is not initial.
-                cast if_ixml_element( x_tr_new_node )->set_attribute_ns( name = |data-eezz-path| value = x_path ).
+                "-----> cast if_ixml_element( x_tr_new_node )->set_attribute_ns( name = |data-eezz-path| value = x_path ).
               endif.
 
               data(x_row_update) = cast if_ixml_element( x_tr_new_node )->get_attribute_ns( 'data-eezz-event' ).
@@ -395,18 +397,12 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
         if line_exists( x_table_row->*[ c_field_name = '_eezz_row_cell_' ] ).
           x_row_cell = x_table_row->*[ c_field_name = '_eezz_row_cell_' ].
           " replaced c_node by x_tr_new_node
-          cast if_ixml_element( x_tr_new_node )->set_attribute_ns( name = 'name'           value = x_row_cell-c_genkey ).
-          cast if_ixml_element( x_tr_new_node )->set_attribute_ns( name = |data-eezz-path| value = x_row_cell-c_genkey ).
+          cast if_ixml_element( x_tr_new_node )->set_attribute_ns( name = 'name' value = x_row_cell-c_genkey ).
 
-          if line_exists( m_dictionary->*[ c_key = |tree_path| ] ).
-            data(x_treepath) = |{ m_dictionary->*[ c_key = |tree_path| ]-c_value }/{ x_row_cell-c_genkey }|.
-            cast if_ixml_element( x_tr_new_node )->set_attribute_ns( name = |data-eezz-path| value = x_treepath ).
-          endif.
-
+          data(x_treepath) = |{ m_dictionary->*[ c_key = |tree_path| ]-c_value }/{ x_row_cell-c_genkey }|.
+          cast if_ixml_element( x_tr_new_node )->set_attribute_ns( name = |data-eezz-path| value = x_treepath ).
         endif.
 
-        "----add_onclick_4_row( iv_node = <fs_cw_templ>-c_node iv_json = <fs_cw_templ>-c_json iv_idx = x_idx iv_path = x_path ).
-        "----data(x_template_clone) = <fs_cw_templ>-c_node->clone( ).
         add_onclick_4_row( iv_node = x_tr_new_node iv_json = <fs_cw_templ>-c_json iv_idx = x_idx iv_path = x_path ).
         data(x_template_clone)     = x_tr_new_node->clone( ).
 
@@ -693,10 +689,9 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
 
       " display elements related to the column type are collected for the table columns section
       data(x_cl_json)  = new zcl_eezz_json( iv_json = x_eezz_attr->get_value( ) ).
-      data(x_template) = x_cl_json->get( iv_path = 'display/type' ).
-      if x_template is bound.
-        data(x_jsonrow)     = x_template->*[ 1 ].
-        x_wac_templ-c_value = x_jsonrow-c_value.
+      data(x_tpl_type) = x_cl_json->get_value( iv_path = 'display' iv_key = 'type' ).
+      if x_tpl_type is not initial.
+        x_wac_templ-c_value = x_tpl_type.
         x_wac_templ-c_node  = x_next.
 
         append x_wac_templ to x_tbl_templ.
@@ -705,9 +700,9 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
 
       " display elements related to row attributes are stable regarding their position
       " and are inserted, if the attributes matches the value exact
-      x_template  = x_cl_json->get( iv_path = 'display' ).
-      if x_template is bound and line_exists( iv_row->*[ c_field_name = |_eezz_row_cell_| ] ).
-        x_jsonrow = x_template->*[ 1 ].
+      data(x_template)  = x_cl_json->get( iv_path = 'display' ).
+      if x_template is not initial and line_exists( iv_row->*[ c_field_name = |_eezz_row_cell_| ] ).
+        data(x_jsonrow) = x_template->*[ 1 ].
         data(x_rowcell) = iv_row->*[ c_field_name = |_eezz_row_cell_| ].
         data(x_key)     = to_upper( x_jsonrow-c_key ).
         if m_dictionary is bound.
@@ -728,7 +723,7 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
 
       " display elements not in the template description are stable regarding their position
       x_template = x_cl_json->get( iv_path = 'table-columns' ).
-      if x_template is not bound.
+      if x_template is initial.
         iv_parent->append_child( x_next->clone( ) ).
         continue.
       endif.

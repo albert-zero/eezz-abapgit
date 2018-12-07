@@ -40,19 +40,41 @@ CLASS ZCL_EEZZ_DRIVE IMPLEMENTATION.
 
     try.
         " get the data from shared memory segment
-        try.
-            data(x_handle) = zcl_eezz_shm=>attach_for_read( ).
-            data(x_result) = x_handle->root->get(  ).
-            x_handle->detach( ).
-          catch cx_root into data(xex98).
-            if x_handle is bound.
-              x_handle->detach( ).
-            endif.
-            return.
-        endtry.
+        data x_fields type tihttpnvp.
 
-        server->response->set_content_type( |application/zip|  ).
-        server->response->set_data( data = x_result ).
+        case server->request->get_form_field_cs( 'display' ).
+          when 'fields'.
+            server->request->get_form_fields( changing fields = x_fields ).
+            data(x_output) = cl_demo_output=>new( ).
+            x_output->write_data( x_fields ).
+            server->response->set_cdata( data = x_output->get( ) ).
+            return.
+        endcase.
+
+        case server->request->get_form_field_cs( 'download' ).
+          when 'logfiles'.
+            try.
+                data(x_handle) = zcl_eezz_shm=>attach_for_read( ).
+                data(x_result) = x_handle->root->get(  ).
+                x_handle->detach( ).
+                server->response->set_content_type( |application/zip|  ).
+                server->response->set_data( data = x_result ).
+              catch cx_root into data(xex98).
+                if x_handle is bound.
+                  x_handle->detach( ).
+                endif.
+            endtry.
+            return.
+        endcase.
+
+        data(x_object) = server->request->get_form_field_cs( 'navigation' ).
+        if x_object is not initial.
+          data(x_pos_x) = server->request->get_form_field_cs( 'x' ).
+          data(x_pos_y) = server->request->get_form_field_cs( 'y' ).
+          data(x_timer) = server->request->get_form_field_cs( 't' ).
+
+          return.
+        endif.
 
       catch cx_root.
     endtry.

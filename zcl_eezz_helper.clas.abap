@@ -18,6 +18,8 @@ public section.
       value(R_URL) type STRING .
 protected section.
 private section.
+
+  class-data MT_HASHVIEW type ref to DATA .
 ENDCLASS.
 
 
@@ -68,11 +70,27 @@ CLASS ZCL_EEZZ_HELPER IMPLEMENTATION.
 
 
   method create_hash_for_table_key.
+    types: begin of thash_struct,
+             c_key   type string,
+             c_value type string,
+           end of thash_struct.
+
+    types thash_tbl type table of thash_struct with key c_key initial size 0.
+    data  xtbl_hash type ref to thash_tbl.
 
     data: x_digest          type ref to cl_abap_message_digest,
           x_converter       type ref to cl_abap_conv_out_ce,
           x_data_as_xstring type xstring,
           x_genkey          type string.
+
+    if mt_hashview is initial.
+      xtbl_hash   = new thash_tbl( ).
+      mt_hashview = xtbl_hash.
+    endif.
+
+    "FIELD-SYMBOLS <fs> type any table.
+    "assign mt_hashview->* to <fs>.
+    xtbl_hash = cast thash_tbl( mt_hashview ).
 
     if iv_path is not initial.
       x_genkey = iv_path.
@@ -115,6 +133,7 @@ CLASS ZCL_EEZZ_HELPER IMPLEMENTATION.
         x_digest->digest( ).
         rv_hash = x_digest->to_base64( ).
 
+        xtbl_hash->*[ c_key = rv_hash ]-c_value = x_genkey.
       catch cx_abap_message_digest.
         clear rv_hash.
       catch cx_sy_conversion_codepage

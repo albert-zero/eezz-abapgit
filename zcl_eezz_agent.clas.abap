@@ -59,7 +59,8 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
   method constructor.
     try.
         data x_msg_cons type ref to IF_AMC_MESSAGE_CONSUMER.
-        x_msg_cons = cl_amc_channel_manager=>create_message_consumer( i_application_id = 'Z_EEZZ_WS_MSG_CHANNEL' i_channel_id = '/eezz/web').
+        x_msg_cons =
+         cl_amc_channel_manager=>create_message_consumer( i_application_id = 'Z_EEZZ_WS_MSG_CHANNEL' i_channel_id = '/eezz/web').
         x_msg_cons->start_message_delivery( i_receiver = me ).
 
         x_msg_cons = cl_amc_channel_manager=>create_message_consumer( i_application_id = 'Z_EEZZ_WS_MSG_CHANNEL' i_channel_id = '/eezz/auth').
@@ -183,6 +184,7 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
           x_msg           type zstr_message,
           x_ref_obj       type ref to zif_eezz_table,
           x_json          type ref to zcl_eezz_json,
+          x_current_path  type string,
           x_data          type ref to data.
     field-symbols <fs_symbol>     type zstr_symbols.
     data          x_global_symbol type zstr_symbols.
@@ -211,7 +213,7 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
             data(x_reader_name) = x_json->get_value( |reader| ).
             data(x_reader_sym)  = m_tbl_global[ c_name = x_reader_name ].
             m_file_loader       = x_reader_sym-c_object.
-            m_file_loader->prepare_download( iv_message = iv_message ).
+            x_str_json          = m_file_loader->prepare_download( iv_message = iv_message ).
             iv_ostream->write_string( x_str_json ).
             return.
           endif.
@@ -293,10 +295,10 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
               continue.
             elseif x_http_element_by_name cp 'this'.
               x_http_element_by_name    = x_key_struct[ 1 ].
-              read table m_tbl_global WITH TABLE KEY c_name = x_http_element_by_name ASSIGNING <fs_symbol>.
+              read table m_tbl_global with table key c_name = x_http_element_by_name assigning <fs_symbol>.
               <fs_symbol>-c_ref_obj = x_eezz_table.
             else.
-              read table m_tbl_global WITH TABLE KEY c_name = x_http_element_by_name ASSIGNING <fs_symbol>.
+              read table m_tbl_global with table key c_name = x_http_element_by_name assigning <fs_symbol>.
             endif.
             x_global_symbol = m_tbl_global[ c_name = x_http_element_by_name ].
 
@@ -327,31 +329,38 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
               x_http_element_attr = x_http_element_path.
               x_http_element_path = x_key_struct[ 1 ].
             elseif x_http_element_path is not initial.
-              x_update-c_key      = |{ x_key_struct[ 1 ] }.{ x_key_struct[ 2 ] } |.
-              x_http_element_path = |{ x_http_element_path }/{ x_val_struct[ 1 ] }|.
-              modify table x_dictionary->* from value #( c_key = |tree_path| c_value = x_http_element_path ) transporting c_value.
+              x_update-c_key       = |{ x_key_struct[ 1 ] }.{   x_key_struct[ 2 ] }|.
+              x_http_element_path  = |{ x_http_element_path }/{ x_val_struct[ 1 ] }|.
+              x_current_path       = x_dictionary->*[ c_key = 'tree_path' ]-c_value.
             else.
-              x_http_element_path = x_key_struct[ 1 ].
+              x_current_path       = x_dictionary->*[ c_key = 'tree_path' ]-c_value.
+              if x_current_path np '/'.
+                x_http_element_path  = x_current_path. " x_key_struct[ 1 ].
+              else.
+                x_http_element_path  = x_key_struct[ 1 ].
+              endif.
             endif.
 
             if x_http_element_attr cs 'innerHTML'.
-              x_global_symbol-c_name = |{ x_key_struct[ 1 ] }/{ x_val_struct[ 1 ] }|.
-              if line_exists( m_tbl_global[ c_name = x_global_symbol-c_name ] ).
-                modify table m_tbl_global from x_global_symbol transporting c_object c_templ_node c_eezz_json c_ref_obj.
-              else.
-                insert x_global_symbol into table m_tbl_global.
-              endif.
+              x_global_symbol-c_name   = x_http_element_path.
+              x_global_symbol-c_object = x_ref_obj.
+              x_dictionary->*[ c_key = |tree_path| ]-c_value = x_http_element_path.
 
-              x_new_table = create_table( iv_table_name = x_global_symbol-c_name is_entry = x_global_symbol is_eezz_table = x_ref_obj ).
+              x_new_table = create_table( iv_table_name = x_global_symbol-c_name is_entry = x_global_symbol is_eezz_table = x_ref_obj  ).
               zcl_eezz_message=>add( iv_key = x_update-c_key  iv_node = x_new_table  iv_symbol = ref #( x_global_symbol ) ).
 
-              x_global_symbol-c_name = |{ x_key_struct[ 1 ] }|.
-              if line_exists( m_tbl_global[ c_name = x_global_symbol-c_name ] ).
-                modify table m_tbl_global from x_global_symbol transporting c_object c_templ_node c_eezz_json c_ref_obj.
-              else.
+              " insert new tree reference
+              modify table m_tbl_global from x_global_symbol transporting c_object c_templ_node c_eezz_json c_ref_obj.
+              if sy-subrc ne 0.
                 insert x_global_symbol into table m_tbl_global.
               endif.
 
+              " store data for navigation
+              x_global_symbol-c_name = x_key_struct[ 1 ].
+              modify table m_tbl_global from x_global_symbol transporting c_object c_templ_node c_eezz_json c_ref_obj.
+              if sy-subrc ne 0.
+                insert x_global_symbol into table m_tbl_global.
+              endif.
             else.
               " For any attribute we use the dictionary of the eezz_table
               data x_http_update type zstr_update.
@@ -417,15 +426,15 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
 
   method parse_eezz_dom.
 
-    data: x_dictionary     type ref to ztty_dictionary.
+    data: x_dictionary     type ztty_dictionary.
     data: x_update         type zstr_update.
     data: x_params         type ref to ztty_eezz_json.
     data: x_index_int      type integer,
           x_visible_items  type integer,
           x_visible_blocks type integer.
 
-    data: x_wa_parameter   type abap_parmbind,
-          x_parameters     type abap_parmbind_tab.
+    data: x_wa_parameter type abap_parmbind,
+          x_parameters   type abap_parmbind_tab.
     data: x_jsn_animation  type ref to zcl_eezz_json.
 
     " Add default behavior onclick
@@ -547,7 +556,9 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
             x_agent_message->add( iv_key = x_name_attr iv_value = x_json_dump ).
           endif.
 
-          append x_wa_named_node->* to m_tbl_global.
+          if not line_exists( m_tbl_global[ c_name = x_name_attr ] ).
+            append x_wa_named_node->* to m_tbl_global.
+          endif.
         enddo.
       catch cx_root into data(x_ex_loop).
         x_agent_message->add( iv_key = 'Parse' iv_exception = x_ex_loop ).

@@ -23,7 +23,9 @@ interface ZIF_EEZZ_TABLE
       value(RV_MESSAGE) type ref to ZCL_EEZZ_MESSAGE .
   methods PREPARE_DOWNLOAD
     importing
-      !IV_MESSAGE type ref to IF_APC_WSP_MESSAGE .
+      !IV_MESSAGE type ref to IF_APC_WSP_MESSAGE
+    returning
+      value(RV_REQUEST) type STRING .
   methods GET_UPDATE
     returning
       value(RT_UPDATE) type ref to ZTTY_UPDATE .

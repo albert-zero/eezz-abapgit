@@ -80,16 +80,20 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
       ( c_key = 'table_last'     c_value = '-1' )
       ( c_key = 'table_next'     c_value =  '2' )
       ( c_key = 'table_prev'     c_value = '-2' )
-      ( c_key = 'table_current'  c_value =  '0' )
-      ( c_key = 'innerHTML'      c_value = 'innerHTML')
+      ( c_key = 'table_current'  c_value =  '' )
       ( c_key = 'table_path'     c_value =  '/' )
       ( c_key = 'table_items'    c_value =  '20' )
-      ( c_key = 'tree_path'      c_value =  ''  )
+      ( c_key = 'table_block'    c_value =  '20' )
+      ( c_key = 'table_size'     c_value =  '0' )
       ( c_key = 'table_key'      c_value =  '/' )
       ( c_key = 'table_type'     c_value =  '' )
+      ( c_key = 'table_name'     c_value =  '' )
       ( c_key = 'table_header'   c_value =  '' )
+      ( c_key = 'tree_path'      c_value =  '/' )
+      ( c_key = 'tree_key'       c_value =  '' )
       ( c_key = 'file_loader'    c_value =  '' )
-    ).
+      ( c_key = 'innerHTML'      c_value = 'innerHTML')
+   ).
 
     try.
         if iv_table is not initial.
@@ -451,8 +455,7 @@ endmethod.
 
     m_selected = x_index.
 
-    data x_path type string. " mt_dictionary[ c_key = |tree_path| ]-c_value.
-    data(x_path_calc) = mt_dictionary[ c_key = |tree_path| ]-c_value.
+    data(x_path) = ||. " mt_dictionary[ c_key = |tree_path| ]-c_value.
     get reference of mt_column_names into data(x_ref_row).
 
     data: x_genkey type string.
@@ -550,6 +553,15 @@ endmethod.
         if iv_message->get_message_type( ) = iv_message->co_message_type_text.
           zcl_eezz_message=>set_request( iv_message->get_text( ) ).
           zcl_eezz_message=>set_status( 100 ).
+
+          data(x_json)     = new zcl_eezz_json( iv_json = iv_message->get_text( ) ).
+          data(x_json_tbl) = x_json->get( ).
+
+          delete table x_json_tbl->* with table key c_key = 'update'.
+          x_json        = new zcl_eezz_json( it_json = x_json_tbl ).
+          rv_request    = x_json->dump( )->get_result_string( ).
+          zcl_eezz_message=>set_status( 100 ).
+
         endif.
       catch cx_root into data(x_exception).
         zcl_eezz_message=>add( iv_status = 500 iv_key = |OnDownload| iv_exception = x_exception ).

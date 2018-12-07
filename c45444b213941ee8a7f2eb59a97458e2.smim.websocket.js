@@ -14,12 +14,12 @@ document.onload = onLoadDelay();
 // window.onload = eezzConnect();
 
 function onLoadDelay() {
-	if (document.querySelector('body') != null) {
-		eezzConnect();
-	}
-	else {		
-		setTimeout( function() { eezzConnect() }, 10 );
-	}
+    if (document.querySelector('body') != null) {
+        eezzConnect();
+    }
+    else {        
+        setTimeout( function() { eezzConnect() }, 10 );
+    }
 }
 
 /* ------------------------------------------------------------------------------- */
@@ -97,9 +97,9 @@ var eezzAgent = {
             aJsonArg.current.elements = aJsonArg.current.context.getElementsByTagName('TD');
             
             if (aJsonArg.updnew.context.length > 0) {
-            	aJsonArg.updnew.context   = aJsonArg.updnew.context[0];
-            	aJsonArg.updnew.filter    = aJsonArg.updnew.context.getElementsByTagName('TD');
-            	aJsonArg.updnew.elements  = aJsonArg.updnew.filter;
+                aJsonArg.updnew.context   = aJsonArg.updnew.context[0];
+                aJsonArg.updnew.filter    = aJsonArg.updnew.context.getElementsByTagName('TD');
+                aJsonArg.updnew.elements  = aJsonArg.updnew.filter;
             }
             
             // Update function could only called once for a given cycle
@@ -113,7 +113,7 @@ var eezzAgent = {
                         }
                         
                         if (aJsonArg.updnew.context.length == 0) {
-                        	aJsonArg.updnew = aJsonArg.current;
+                            aJsonArg.updnew = aJsonArg.current;
                         }
                         
                         var xParent = aJsonContext.current.context.parentNode;
@@ -164,7 +164,7 @@ var eezzAgent = {
             }
             else {
                 try {
-                	var aGenerator = eval("( " + xCommand + "( aJsonArg, xCmdArgs ) )");
+                    var aGenerator = eval("( " + xCommand + "( aJsonArg, xCmdArgs ) )");
                     eezzAgent.runAnimation( new Date().getTime(), aGenerator, xCmdArgs );                    
                    //  xxobj.circle( xJsonArgs );
                } catch (e) {
@@ -375,7 +375,7 @@ var eezzAgent = {
 /* ------------------------------------------------------------------------------- */
 /* ------------------------------------------------------------------------------- */
 function eezzConnect() {
-	eezzWebSocket   = new WebSocket(gSocketAddr);
+    eezzWebSocket   = new WebSocket(gSocketAddr);
     
     eezzWebSocket.onopen = function() { 
         var aParser   = document.createElement('a');
@@ -390,8 +390,8 @@ function eezzConnect() {
             var aMsgName = '';
             var aMsgLine = document.querySelector('table[data-eezz-template="database"]');
             if (aMsgLine) {
-            	aMsgHtml = aMsgLine.outerHTML;
-            	aMsgName = aMsgLine.getAttribute('name');
+                aMsgHtml = aMsgLine.outerHTML;
+                aMsgName = aMsgLine.getAttribute('name');
             }  
             aJson = {
                "path"    : aParser.pathname, 
@@ -485,9 +485,9 @@ function eezzConnect() {
                 }
                 
                 try {
-                	xJsonScript = JSON.parse( decodeURIComponent( aJson.update[xKeyElement] ));
+                    xJsonScript = JSON.parse( decodeURIComponent( aJson.update[xKeyElement] ));
                 } catch (xExceptions) {
-                	continue;
+                    continue;
                 }
                 xJsonArg    = {
                     'name'   : xDestination[0], 
@@ -630,13 +630,13 @@ function eezzTreeExCo(aElement) {
         return true;
     }
     if (xTreeNode.nextSibling == null) {
-    	return true;
+        return true;
     }
     if (xTreeNode.nextSibling.className == null) {
-    	return true;
+        return true;
     }
     if (xTreeNode.nextSibling.className.indexOf('eezzTreeHead') < 0) {
-    	return true;
+        return true;
     }
     
     xTreeNode.parentNode.removeChild(xTreeNode.nextSibling);    
@@ -689,19 +689,26 @@ function eezzTreeInsert(aElementId, aNodeElement) {
     xTBody = xTableBody.querySelector('tbody');
         
     if (xTBody.getAttribute('name')) {
-    	var xBodyName = xTBody.getAttribute('name');
-    	xTBody.removeAttribute('name');
-    	xTableBody.setAttribute('name', xBodyName);
+        var xBodyName = xTBody.getAttribute('name');
+        xTBody.removeAttribute('name');
+        xTableBody.setAttribute('name', xBodyName);
         //if (aElement.getAttribute('data-eezz-path')) {
-    	//    xTableBody.setAttribute('data-eezz-path', aElement.getAttribute('data-eezz-path') + '/' + xTableName);
-    	//}
+        //    xTableBody.setAttribute('data-eezz-path', aElement.getAttribute('data-eezz-path') + '/' + xTableName);
+        //}
     }
+
+    try {
+        if (aElement.nextSibling.className.indexOf('eezzTreeHead') >=  0) {
+            xParent.removeChild(aElement.nextSibling);
+        }
+    } catch ( xEx ) {}
     
     xParent.insertBefore( xTableRow, aElement.nextSibling );
     
     var xMenus = xTableBody.getElementsByClassName('eezzMenuDialog');
     if (xMenus.length > 0) {
-        xTableRow.setAttribute('class', 'eezzTreeNode eezzTreeHead eezzMenuDialog');    	
+        xTableRow.setAttribute('class', 'eezzTreeNode eezzTreeHead eezzMenuDialog');
+        xTableRow.setAttribute('data-eezz-path', aElement.getAttribute('data-eezz-path') );
     }
     
     var  xFlipElements;
@@ -803,8 +810,9 @@ function easyClick(aEvent, aElement) {
     var aElem;
     var aPost  = false;
     var aValue;
-    var aChunkSize = 65536*2;
-
+    var aChunkSize   = 65536*2;
+    var aElementName = aElement['name'];
+    
     aJson['name'] = aElement['name'];
 
     if (aJson.files) {
@@ -836,8 +844,8 @@ function easyClick(aEvent, aElement) {
     }
     
     if (xIsTreeNode) {
-    	// In a tree we stop propagation to prevent the entire
-    	// tree from collapsing
+        // In a tree we stop propagation to prevent the entire
+        // tree from collapsing
         if (aEvent.stopPropagation) {
             aEvent.stopPropagation();
         }
@@ -846,64 +854,64 @@ function easyClick(aEvent, aElement) {
         }
 
         // Close all menu dialogs of this tree node
-    	// 1. Find the common parent 
-    	// 2. Find all open dialog elements on foreign trees paths
+        // 1. Find the common parent 
+        // 2. Find all open dialog elements on foreign trees paths
         if (aTreeElem.className.indexOf('eezzMenuDialog') > 0) {
-        	for (xNodeElem = aTreeElem.parentNode; xNodeElem != null; xNodeElem = xNodeElem.parentNode) {
+            for (xNodeElem = aTreeElem.parentNode; xNodeElem != null; xNodeElem = xNodeElem.parentNode) {
                 if (xNodeElem.className.indexOf('eezzMenuDialog') > 0) {
-                	xNodeElem.remove();
-                	break;
-                }        		
-        	}
+                    xNodeElem.remove();
+                    break;
+                }                
+            }
         }
         
         var xMenuNodes = aTreeElem.parentNode.querySelectorAll('.eezzTreeHead.eezzMenuDialog');
         for (var i = 0; i < xMenuNodes.length; i++) {
-        	if (xMenuNodes[i] == aTreeElem.nextSibling) {
-        		xMenuNodes[i].remove();
-        		return;
-        	}
-    		xMenuNodes[i].remove();
+            if (xMenuNodes[i] == aTreeElem.nextSibling) {
+                xMenuNodes[i].remove();
+                return;
+            }
+            xMenuNodes[i].remove();
         }
         
         if (aTreeElem.parentNode.className.indexOf('eezzSelectable') >= 0) {
-        	var i;
-        	var aStartElem;
-        	var xSelectInx;
-        	var xClassNames   = aTreeElem.className.split(' ');
-        	var xSelecteNodes = aTreeElem.parentNode.querySelectorAll('.eezzSelected');
-        	
-        	if (aEvent.ctrlKey) {   
-        		xSelecteNodes.length = 0;        		
-        	}
-        	
-        	if (aEvent.shiftKey) {        		
-        		var xTrElements =  aTreeElem.parentNode.querySelectorAll('tr');
-        		// select all entries from the selected node to the current node
-        		for (aElem in xTrElements) {
-        			if (aElem === xSelecteNodes[0] || aElem === aTreeElem) {
-        				if (aStartElem) {
-        					break;
-        				}
-        				aStartElem = aElem;
-        			}
-        			if (aStartElem && aElem.className.indexOf('eezzSelected') < 0) {
-        				aElem.className.concat(' eezzSelected');
-        			}
-        		}
-        		xSelecteNodes.length = 0;
-        	}
-        	
-	        for (i = 0; i < xSelecteNodes.length; i++) {
-	        	// remove selection entries
-	        	xClassNames = xSelecteNodes[i].className.split(' ');
-	        	xSelectInx  = xClassNames.indexOf('eezzSelected'); 
-				xSelecteNodes[i].className = xClassNames.splice( xSelectInx, 1 ).join(' ');;
-	        }
-	        
-	        if (aTreeElem.className.indexOf('eezzSelected') < 0) {
-	        	aTreeElem.className.concat(' eezzSelected');
-	        }
+            var i;
+            var aStartElem;
+            var xSelectInx;
+            var xClassNames   = aTreeElem.className.split(' ');
+            var xSelecteNodes = aTreeElem.parentNode.querySelectorAll('.eezzSelected');
+            
+            if (aEvent.ctrlKey) {   
+                xSelecteNodes.length = 0;                
+            }
+            
+            if (aEvent.shiftKey) {                
+                var xTrElements =  aTreeElem.parentNode.querySelectorAll('tr');
+                // select all entries from the selected node to the current node
+                for (aElem in xTrElements) {
+                    if (aElem === xSelecteNodes[0] || aElem === aTreeElem) {
+                        if (aStartElem) {
+                            break;
+                        }
+                        aStartElem = aElem;
+                    }
+                    if (aStartElem && aElem.className.indexOf('eezzSelected') < 0) {
+                        aElem.className.concat(' eezzSelected');
+                    }
+                }
+                xSelecteNodes.length = 0;
+            }
+            
+            for (i = 0; i < xSelecteNodes.length; i++) {
+                // remove selection entries
+                xClassNames = xSelecteNodes[i].className.split(' ');
+                xSelectInx  = xClassNames.indexOf('eezzSelected'); 
+                xSelecteNodes[i].className = xClassNames.splice( xSelectInx, 1 ).join(' ');;
+            }
+            
+            if (aTreeElem.className.indexOf('eezzSelected') < 0) {
+                aTreeElem.className.concat(' eezzSelected');
+            }
         }
     }
     
@@ -913,13 +921,14 @@ function easyClick(aEvent, aElement) {
         var xCallArr = [];
         
         for (xNodeElem = aTreeElem; xNodeElem != null; xNodeElem = xNodeElem.parentNode) {
-        	if (!xNodeElem.className) {
-                continue;		
-        	}
+            if (!xNodeElem.className) {
+                continue;        
+            }
                
             if (xNodeElem.className.indexOf('eezzTree') >= 0) {
                 if (xNodeElem.getAttribute('data-eezz-path')) {
-                    xTreePath = xNodeElem.getAttribute('data-eezz-path');
+                    aJson['name'] = xNodeElem.getAttribute('name');  
+                    xTreePath     = xNodeElem.getAttribute('data-eezz-path');
                     break;
                 }
             }
@@ -946,13 +955,13 @@ function easyClick(aEvent, aElement) {
                 var aNewVal  = aJson.update[ xUpdDest ];
                 
                 if (aNewVal instanceof Object) {
-                	aNewVal  = JSON.stringify(aNewVal);
+                    aNewVal  = JSON.stringify(aNewVal);
                 }
                 
                 if (aNewKey.indexOf('.innerHTML') >= 0 && xIsTreeNode && aElement.tagName == 'TD') {
                     if (!eezzTreeExCo(aTreeElem)) {
                         return;
-                    }                	
+                    }                    
                 }
                 
                 if (aNewKey.indexOf('this.') >= 0) {
@@ -962,24 +971,29 @@ function easyClick(aEvent, aElement) {
 
                 // Transfer within a page using {} notation
                 if (aNewKey.indexOf('.') > 0) {
-                	try {
-	                    xSplitArgs    = aNewKey.split('.');
-	                    xSourceElem   = document.getElementsByName( xSplitArgs[0] )[0];
-	                    xValue        = xSourceElem.getAttribute( xSplitArgs[1] );
-	                    if (xValue.indexOf('{}') > 0) {
-	                    	xValue.replace(/{}/gi, aNewVal);
-	                    }
+                    try {
+                        xSplitArgs    = aNewKey.split('.');
+                        xSourceElem   = document.getElementsByName( xSplitArgs[0] )[0];
+                        xValue        = xSourceElem.getAttribute( xSplitArgs[1] );
+                        if (xValue.indexOf('{}') > 0) {
+                            xValue.replace(/{}/gi, aNewVal);
+                        }                        
                     } catch (aException1) {}
                 }
                 
                 if (xIsTreeNode) {
-                	aNewKey = aNewKey + '.' + xTreePath;
+                    if (aNewVal.indexOf('this.data-eezz-path') >= 0) {
+                        aNewKey = aNewKey + '.' + xTreePath;
+                    }
                 }
 
+                //if (aNewVal.indexOf('this.data-eezz-path') >= 0) {
+                //    aNewVal = xTreePath.concat('/', aJson['name']);
+                //}
                 if (aNewVal.indexOf('this.') >= 0) {
                     xSplitArgs = aNewVal.split('.');
                     if (aTreeElem.getAttribute('name')) {
-                    	aNewVal = aTreeElem.getAttribute('name') + '.' + xSplitArgs[1];
+                        aNewVal = aTreeElem.getAttribute('name') + '.' + xSplitArgs[1];
                     }
                 }
                 xNewUpdate[ aNewKey ] = aNewVal;                
@@ -995,15 +1009,22 @@ function easyClick(aEvent, aElement) {
                         xJsnAction = xJsnAction['eezzAgent.assign'];
                         
                         if (aJson.callback) { 
-	                        xJsonPrepare   = {'callback': aJson.callback };
-	                        eezzWebSocket.send(JSON.stringify(xJsonPrepare));
+                            xJsonPrepare   = {'callback': aJson.callback };
+                            eezzWebSocket.send(JSON.stringify(xJsonPrepare));
                         }
                         
-	                    aJson.callback = {};
+                        aJson.callback = {};
                         for (xMethod in xJsnAction) {
-                            aJson.callback[ xMethod + '.' + xSplitArgs[0] ] = {};
+                            var xExtMethod = xMethod + '.' + xSplitArgs[0];
+                            
+                            if (xTreePath.length > 1) {                                
+                                xExtMethod = xMethod + '.' + xTreePath;
+                            }
+                            
+                            // aJson.callback[ xMethod + '.' + xSplitArgs[0] ] = {};
+                            aJson.callback[ xExtMethod ] = {};
                             for (xArgs in xJsnAction[xMethod]) {
-                                aJson.callback[ xMethod + '.' + xSplitArgs[0] ][xArgs] = xJsnAction[xMethod][xArgs];
+                                aJson.callback[ xExtMethod ][xArgs] = xJsnAction[xMethod][xArgs];
                             }
                         }
                     }
@@ -1070,12 +1091,12 @@ function easyClick(aEvent, aElement) {
         var xNewCallback = {};
         var xNewMethod;
         for (xMethod in aJson.callback) {
-        	xNewMethod = xMethod;
-        	if (xMethod.indexOf('this.') >= 0) {
+            xNewMethod = xMethod;
+            if (xMethod.indexOf('this.') >= 0) {
                 xSplitArgs = xMethod.split('.');                
-        		xNewMethod = aTreeElem.getAttribute('name') + '.' + xSplitArgs[1];
-        	}
-        	xNewCallback[ xNewMethod ] = aJson.callback[ xMethod ]; 
+                xNewMethod = aTreeElem.getAttribute('name') + '.' + xSplitArgs[1];
+            }
+            xNewCallback[ xNewMethod ] = aJson.callback[ xMethod ]; 
         }
         aJson.callback = xNewCallback;
     }
@@ -1090,18 +1111,18 @@ function easyClick(aEvent, aElement) {
                 
                 try {
                     //if (xSource.indexOf('this.data-eezz-path') >= 0) {
-                	//    aJson.callback[xMethod][xArg] = xCallPath;
-                	//}                    
+                    //    aJson.callback[xMethod][xArg] = xTreePath.concat( '/', aJson['name'] );
+                    //}                    
                     if (xSource.indexOf('this.') >= 0) {
                         aJson.callback[xMethod][xArg] = xSourceElem.getAttribute( xSplitArgs[1] );
                     }
                     else if (xSplitArgs.length > 1) {
                         xSourceElem  = document.getElementsByName( xSplitArgs[0] )[0];
                         if ( xSourceElem[ xSplitArgs[1] ]) {
-                        	aJson.callback[xMethod][xArg] = xSourceElem[ xSplitArgs[1] ]; 
+                            aJson.callback[xMethod][xArg] = xSourceElem[ xSplitArgs[1] ]; 
                         }
                         else {
-                        	aJson.callback[xMethod][xArg] = xSourceElem.getAttribute( xSplitArgs[1] );
+                            aJson.callback[xMethod][xArg] = xSourceElem.getAttribute( xSplitArgs[1] );
                         }
                     }
                 } catch (aException) {

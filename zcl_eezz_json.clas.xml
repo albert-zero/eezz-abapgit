@@ -47,14 +47,32 @@
     </SEOCOMPOTX>
     <SEOCOMPOTX>
      <CLSNAME>ZCL_EEZZ_JSON</CLSNAME>
+     <CMPNAME>M_PARENT</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>parent structure</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_EEZZ_JSON</CLSNAME>
      <CMPNAME>M_WRITER</CMPNAME>
      <LANGU>D</LANGU>
      <DESCRIPT>Binärer Stringschreibstrom</DESCRIPT>
     </SEOCOMPOTX>
     <SEOCOMPOTX>
      <CLSNAME>ZCL_EEZZ_JSON</CLSNAME>
+     <CMPNAME>M_WRITER</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Binärer Stringschreibstrom</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_EEZZ_JSON</CLSNAME>
      <CMPNAME>WALK</CMPNAME>
      <LANGU>D</LANGU>
+     <DESCRIPT>recursive walk to generate a dump</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_EEZZ_JSON</CLSNAME>
+     <CMPNAME>WALK</CMPNAME>
+     <LANGU>E</LANGU>
      <DESCRIPT>recursive walk to generate a dump</DESCRIPT>
     </SEOCOMPOTX>
    </DESCRIPTIONS>

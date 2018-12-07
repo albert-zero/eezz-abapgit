@@ -75,7 +75,7 @@ CLASS ZCL_EEZZ_MESSAGE IMPLEMENTATION.
     if iv_exception is bound.
       iv_exception->get_source_position( importing program_name = data(x_prog) include_name = data(x_include) source_line = data(x_line) ).
       data(x_text) = |{ x_include }/{ iv_key }:{ x_line }:: { iv_exception->get_text( ) }|.
-      append value #( c_msgtext = x_text c_msgcls = 'exception' c_msgnum = 0 ) to mt_messages.
+      append value #( c_msgtext = x_text c_msgcls = 'Exception' c_msgnum = 0 ) to mt_messages.
       " append value #( c_key = m_ixml_name c_value = x_text ) to mt_update.
       " append value #( c_msgtext = x_text ) to mt_messages.
       return.
@@ -120,6 +120,7 @@ CLASS ZCL_EEZZ_MESSAGE IMPLEMENTATION.
 
 
   method render.
+    data x_dictionary type ztty_dictionary.
 
     if mt_messages is not initial.
       loop at mt_messages assigning field-symbol(<fs_msg>).
