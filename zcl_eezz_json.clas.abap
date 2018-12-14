@@ -115,14 +115,15 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
 
   method callback.
     data:
-      x_class_name    type string,
-      x_method_name   type string,
-      x_target_name   type string,
-      x_tbl_callback  type ref to ztty_eezz_json,
-      x_tbl_parameter type ref to ztty_eezz_json,
-      x_str_call      type zstr_eezz_json,
-      x_dyn_param_wa  type abap_parmbind,
-      x_dyn_param     type abap_parmbind_tab.
+      x_class_name     type string,
+      x_method_name    type string,
+      x_target_name    type string,
+      x_path_extension type string,
+      x_tbl_callback   type ref to ztty_eezz_json,
+      x_tbl_parameter  type ref to ztty_eezz_json,
+      x_str_call       type zstr_eezz_json,
+      x_dyn_param_wa   type abap_parmbind,
+      x_dyn_param      type abap_parmbind_tab.
 
     field-symbols <fs_data> type any.
     data x_ref_data type ref to data.
@@ -148,9 +149,9 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
 
     split x_tbl_callback->*[ 1 ]-c_key at '.' into table data(x_callback_cmd).
     try.
-        x_class_name  = x_callback_cmd[ 1 ].
-        x_method_name = x_callback_cmd[ 2 ].
-        x_target_name = x_callback_cmd[ 3 ].
+        x_class_name     = x_callback_cmd[ 1 ].
+        x_method_name    = x_callback_cmd[ 2 ].
+        x_target_name    = x_callback_cmd[ 3 ].
       catch cx_sy_itab_line_not_found.
     endtry.
 
@@ -266,12 +267,11 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
 
     rt_table ?= x_ref_obj.
 
-    if x_target_name is not initial.
+    if x_target_name is not initial and rt_table is not initial.
       modify table iv_symbols->* from value #( c_name = x_target_name c_object = rt_table ) transporting c_object.
       if sy-subrc ne 0.
         insert value #( c_name = x_target_name c_object = rt_table ) into table iv_symbols->*.
       endif.
-
       data(x_dictionary) = rt_table->get_dictionary( ).
       x_dictionary->*[ c_key = 'tree_path' ]-c_value = x_target_name.
     endif.

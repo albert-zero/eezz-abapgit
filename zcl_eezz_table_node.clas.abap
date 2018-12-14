@@ -234,14 +234,16 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
       endif.
 
       " Add elements with attributes not having data-eezz-template
-      x_constpath       = |{ m_dictionary->*[ c_key = |tree_path| ]-c_value }/{ m_dictionary->*[ c_key = |table_current| ]-c_value }|.
-      data(x_eezz_attr) = x_attributes->get_named_item_ns( 'data-eezz-template' ).
+      x_constpath        = |{ m_dictionary->*[ c_key = |tree_path| ]-c_value }/{ m_dictionary->*[ c_key = |table_current| ]-c_value }|.
+      data(x_eezz_attr)  = x_attributes->get_named_item_ns( 'data-eezz-template' ).
+      data(x_class_attr) = cast if_ixml_element( x_next )->get_attribute_ns( 'class' ).
+      data(x_name_attr)  = cast if_ixml_element( x_next )->get_attribute_ns( 'name' ).
+
+      if x_class_attr cs |eezzTreeNode|.
+        cast if_ixml_element( x_next )->set_attribute_ns( name = |data-eezz-path| value = x_constpath ).
+      endif.
 
       if x_eezz_attr is not bound.
-        data(x_class_attr) = cast if_ixml_element( x_next )->get_attribute_ns( 'class' ).
-        if x_class_attr cs |eezzTreeNode|.
-          cast if_ixml_element( x_next )->set_attribute_ns( name = |data-eezz-path| value = x_constpath ).
-        endif.
         iv_parent->append_child( x_next ).
         continue.
       endif.
@@ -397,10 +399,13 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
         if line_exists( x_table_row->*[ c_field_name = '_eezz_row_cell_' ] ).
           x_row_cell = x_table_row->*[ c_field_name = '_eezz_row_cell_' ].
           " replaced c_node by x_tr_new_node
-          cast if_ixml_element( x_tr_new_node )->set_attribute_ns( name = 'name' value = x_row_cell-c_genkey ).
+          data(x_treepath) = x_row_cell-c_genkey.
+          if m_dictionary->*[ c_key = |tree_path| ]-c_value is not initial.
+            x_treepath = |{ m_dictionary->*[ c_key = |tree_path| ]-c_value }/{ x_treepath }|.
+          endif.
 
-          data(x_treepath) = |{ m_dictionary->*[ c_key = |tree_path| ]-c_value }/{ x_row_cell-c_genkey }|.
           cast if_ixml_element( x_tr_new_node )->set_attribute_ns( name = |data-eezz-path| value = x_treepath ).
+          cast if_ixml_element( x_tr_new_node )->set_attribute_ns( name = |name|           value = x_treepath ). "x_row_cell-c_genkey ).
         endif.
 
         add_onclick_4_row( iv_node = x_tr_new_node iv_json = <fs_cw_templ>-c_json iv_idx = x_idx iv_path = x_path ).

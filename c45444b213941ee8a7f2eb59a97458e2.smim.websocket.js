@@ -1015,9 +1015,18 @@ function easyClick(aEvent, aElement) {
                         
                         aJson.callback = {};
                         for (xMethod in xJsnAction) {
-                            var xExtMethod = xMethod + '.' + xSplitArgs[0];
+                            var xExtMethod = xMethod; // + '.' + xSplitArgs[0];
+                            var xWithExtn  = false;
                             
-                            if (xTreePath.length > 1) {                                
+                            for (xArgs in xJsnAction[xMethod]) {
+                                var xPathArgument = xJsnAction[xMethod][xArgs];
+                                if (xPathArgument.indexOf('data-eezz-path')) {
+                                	xWithExtn = true;
+                                	break;
+                                }
+                            }
+                            
+                            if (xTreePath.length > 1 && xWithExtn) {                                
                                 xExtMethod = xMethod + '.' + xTreePath;
                             }
                             

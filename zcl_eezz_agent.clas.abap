@@ -43,6 +43,7 @@ private section.
       !IV_TABLE_NAME type STRING optional
       !IS_ENTRY type ZSTR_SYMBOLS
       !IS_EEZZ_TABLE type ref to ZIF_EEZZ_TABLE optional
+      !IS_TEMPLATE type ref to IF_IXML_NODE
     returning
       value(RO_NEW_NODE) type ref to IF_IXML_NODE .
   methods SHOW_DOCUMENT
@@ -155,11 +156,11 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
     endif.
 
     get reference of m_tbl_global into x_globals.
-    data(x_template) = is_entry-c_templ_node->clone( ).
+    data(x_template) = is_entry-c_ref_node->clone( ).
     create object x_node_table
       exporting
         iv_table_name = iv_table_name
-        io_node       = x_template
+        io_node       = is_template
         it_globals    = x_globals
         io_eezz_tbl   = x_eezz_table.
 
@@ -331,36 +332,34 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
             elseif x_http_element_path is not initial.
               x_update-c_key       = |{ x_key_struct[ 1 ] }.{   x_key_struct[ 2 ] }|.
               x_http_element_path  = |{ x_http_element_path }/{ x_val_struct[ 1 ] }|.
-              x_current_path       = x_dictionary->*[ c_key = 'tree_path' ]-c_value.
             else.
-              x_current_path       = x_dictionary->*[ c_key = 'tree_path' ]-c_value.
-              if x_current_path np '/'.
-                x_http_element_path  = x_current_path. " x_key_struct[ 1 ].
-              else.
-                x_http_element_path  = x_key_struct[ 1 ].
+              x_http_element_path  = x_dictionary->*[ c_key = 'tree_path' ]-c_value.
+              if x_http_element_path is initial.
+                x_http_element_path = x_key_struct[ 1 ].
               endif.
             endif.
 
             if x_http_element_attr cs 'innerHTML'.
-              x_global_symbol-c_name   = x_http_element_path.
+              " store data for navigation
+              x_global_symbol-c_name   = x_key_struct[ 1 ].
               x_global_symbol-c_object = x_ref_obj.
-              x_dictionary->*[ c_key = |tree_path| ]-c_value = x_http_element_path.
-
-              x_new_table = create_table( iv_table_name = x_global_symbol-c_name is_entry = x_global_symbol is_eezz_table = x_ref_obj  ).
-              zcl_eezz_message=>add( iv_key = x_update-c_key  iv_node = x_new_table  iv_symbol = ref #( x_global_symbol ) ).
+              modify table m_tbl_global from x_global_symbol transporting c_object c_templ_node c_eezz_json c_ref_obj.
+              if sy-subrc ne 0.
+                insert x_global_symbol into table m_tbl_global.
+              endif.
 
               " insert new tree reference
+              x_global_symbol-c_name   = x_http_element_path.
               modify table m_tbl_global from x_global_symbol transporting c_object c_templ_node c_eezz_json c_ref_obj.
               if sy-subrc ne 0.
                 insert x_global_symbol into table m_tbl_global.
               endif.
+              "---->x_dictionary->*[ c_key = |tree_path| ]-c_value = x_http_element_path.
 
-              " store data for navigation
-              x_global_symbol-c_name = x_key_struct[ 1 ].
-              modify table m_tbl_global from x_global_symbol transporting c_object c_templ_node c_eezz_json c_ref_obj.
-              if sy-subrc ne 0.
-                insert x_global_symbol into table m_tbl_global.
-              endif.
+              data(x_ixml_template) = x_global_symbol-c_templ_node->clone( ).
+              x_new_table           = create_table( iv_table_name = x_global_symbol-c_name is_entry = x_global_symbol is_template = x_ixml_template is_eezz_table = x_ref_obj  ).
+              zcl_eezz_message=>add( iv_key = x_update-c_key  iv_node = x_new_table  iv_symbol = ref #( x_global_symbol ) ).
+
             else.
               " For any attribute we use the dictionary of the eezz_table
               data x_http_update type zstr_update.
@@ -591,7 +590,7 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
       endif.
 
       if <x_entry>-c_ref_node->get_name( ) cs 'TABLE'.
-        data(xx_new_table) = create_table( is_entry = <x_entry> ).
+        data(xx_new_table) = create_table( is_entry = <x_entry> is_template = <x_entry>-c_ref_node->clone( ) ).
         data(xx_ref_table) = <x_entry>-c_ref_node.
         xx_ref_table->get_parent( )->replace_child( new_child = xx_new_table old_child = xx_ref_table ).
         <x_entry>-c_ref_node = xx_new_table.
