@@ -41,6 +41,7 @@ private section.
   methods CREATE_TABLE
     importing
       !IV_TABLE_NAME type STRING optional
+      !IV_DESTINATION type STRING optional
       !IS_ENTRY type ZSTR_SYMBOLS
       !IS_EEZZ_TABLE type ref to ZIF_EEZZ_TABLE optional
       !IS_TEMPLATE type ref to IF_IXML_NODE
@@ -146,6 +147,7 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
     data: x_node_table type ref to zcl_eezz_table_node,
           x_globals    type ref to ztty_symbols.
     data  x_eezz_table type ref to zif_eezz_table.
+    data  x_template   type ref to if_ixml_node.
 
     if is_eezz_table is bound.
       x_eezz_table ?= is_eezz_table.
@@ -156,16 +158,18 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
     endif.
 
     get reference of m_tbl_global into x_globals.
-    data(x_template) = is_entry-c_ref_node->clone( ).
-    create object x_node_table
-      exporting
-        iv_table_name = iv_table_name
-        io_node       = is_template
-        it_globals    = x_globals
-        io_eezz_tbl   = x_eezz_table.
+    " x_template = is_entry-c_ref_node->clone( ).
 
-    ro_new_node = x_node_table->get( ).
-  endmethod.
+    create object x_node_table
+        exporting
+          iv_table_name  = iv_table_name
+          iv_destination = iv_destination
+          io_node        = is_template
+          it_globals     = x_globals
+          io_eezz_tbl    = x_eezz_table.
+
+      ro_new_node = x_node_table->get( ).
+    endmethod.
 
 
   method handle_webservice.
@@ -268,18 +272,24 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
             data x_source      type string.
             data x_destination type string.
 
-
             if x_update-c_value cs '*'.
               if x_update-c_value cs '.*'.
                 x_reset = abap_true.
               endif.
               x_source = x_update-c_key.
             else.
-              x_source = x_update-c_value.
+              if x_update-c_type cp 'object'.
+                data(x_writer_value) = x_json->dump( iv_path = |update/{ x_update-c_key }| ).
+                x_update-c_value = x_writer_value->get_result_string( ).
+              else.
+                x_source = x_update-c_value.
+              endif.
             endif.
 
             split x_update-c_key at '.' into table data(x_key_struct).
             split x_source       at '.' into table data(x_val_struct).
+
+            x_destination = x_key_struct[ 1 ].
 
             data(x_http_dictionary_key)  = condense( x_source ).
             data(x_http_element_by_name) = condense( x_val_struct[ 1 ] ).
@@ -343,21 +353,21 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
               " store data for navigation
               x_global_symbol-c_name   = x_key_struct[ 1 ].
               x_global_symbol-c_object = x_ref_obj.
-              modify table m_tbl_global from x_global_symbol transporting c_object c_templ_node c_eezz_json c_ref_obj.
+              modify table m_tbl_global from x_global_symbol transporting c_object c_templ_node c_ref_node c_eezz_json c_ref_obj.
               if sy-subrc ne 0.
                 insert x_global_symbol into table m_tbl_global.
               endif.
 
               " insert new tree reference
               x_global_symbol-c_name   = x_http_element_path.
-              modify table m_tbl_global from x_global_symbol transporting c_object c_templ_node c_eezz_json c_ref_obj.
+              modify table m_tbl_global from x_global_symbol transporting c_object c_templ_node c_ref_node c_eezz_json c_ref_obj.
               if sy-subrc ne 0.
                 insert x_global_symbol into table m_tbl_global.
               endif.
               "---->x_dictionary->*[ c_key = |tree_path| ]-c_value = x_http_element_path.
 
               data(x_ixml_template) = x_global_symbol-c_templ_node->clone( ).
-              x_new_table           = create_table( iv_table_name = x_global_symbol-c_name is_entry = x_global_symbol is_template = x_ixml_template is_eezz_table = x_ref_obj  ).
+              x_new_table           = create_table( iv_table_name = x_global_symbol-c_name iv_destination = x_destination is_entry = x_global_symbol is_template = x_ixml_template is_eezz_table = x_ref_obj  ).
               zcl_eezz_message=>add( iv_key = x_update-c_key  iv_node = x_new_table  iv_symbol = ref #( x_global_symbol ) ).
 
             else.

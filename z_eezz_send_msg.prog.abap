@@ -28,7 +28,7 @@ if p_text is not initial.
         it_fields     = ref #( x_data )
         iv_line       = x_result_table[ 1 ] ).
 
-    catch cx_amc_error into data(x_exception).
+    catch cx_amc_error cx_root into data(x_exception).
       cl_demo_output=>display( x_exception->get_text( ) ).
   endtry.
 endif.

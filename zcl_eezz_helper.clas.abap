@@ -133,7 +133,7 @@ CLASS ZCL_EEZZ_HELPER IMPLEMENTATION.
         x_digest->digest( ).
         rv_hash = x_digest->to_base64( ).
 
-        xtbl_hash->*[ c_key = rv_hash ]-c_value = x_genkey.
+        append value #( c_key = rv_hash c_value = x_genkey ) to xtbl_hash->*.
       catch cx_abap_message_digest.
         clear rv_hash.
       catch cx_sy_conversion_codepage

@@ -45,6 +45,7 @@ public section.
   class-methods GEN_HEADER_EVENT
     importing
       !IV_NAME type STRING
+      !IV_DESTINATION type STRING optional
       !IV_INDEX type INT4
     returning
       value(EV_UPDATE) type STRING .
@@ -475,9 +476,15 @@ CLASS ZCL_EEZZ_JSON IMPLEMENTATION.
 
 
   method gen_header_event.
+    data(x_destination) = iv_destination.
+
+    if x_destination is initial.
+       x_destination = iv_name.
+    endif.
+
     ev_update =
-       '{"callback":{"' && iv_name && '.do_sort":{"index":' && |"{ iv_index }"| && '}},' &&
-       ' "update":{"'   && iv_name && '.innerHTML":"*"}}'.
+       |\{ "callback" : \{"{ iv_name }.do_sort"          : \{"index": "{ iv_index }" \}\},| &&
+       |   "update"   : \{"{ iv_destination }.innerHTML" : "*" \}\}|.
   endmethod.
 
 

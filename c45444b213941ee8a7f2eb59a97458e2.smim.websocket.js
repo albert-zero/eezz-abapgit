@@ -487,7 +487,12 @@ function eezzConnect() {
                 try {
                     xJsonScript = JSON.parse( decodeURIComponent( aJson.update[xKeyElement] ));
                 } catch (xExceptions) {
-                    continue;
+                    if (xExceptions instanceof SyntaxError) {
+                        xJsonScript = aJson.update[xKeyElement];
+                    }
+                    else {
+                        continue;
+                    }
                 }
                 xJsonArg    = {
                     'name'   : xDestination[0], 
@@ -497,7 +502,8 @@ function eezzConnect() {
                 delete aJson.update[xKeyElement];
                 
                 if (aJson.update[xKeyHtml]) {
-                    xJsonArg['innerHTML'] = decodeURIComponent( decodeURIComponent( aJson.update[xKeyHtml] ));                    
+                    var xTmpUri           = decodeURIComponent( aJson.update[xKeyHtml] );                    
+                    xJsonArg['innerHTML'] = decodeURIComponent( xTmpUri );                    
                     delete aJson.update[xKeyHtml];
                 }
                 eezzAgent.script( xJsonArg );   
@@ -801,6 +807,40 @@ function readFiles(aHeader) {
     }
 }
 
+/* Evaluate arguments                */
+/* --------------------------------- */
+function evalThisArgs( aJson, aTreeElem ) {
+    if (aJson.callback) {    
+        for (xMethod in aJson.callback) {
+            for (xArg in aJson.callback[xMethod]) {
+                xSource     = aJson.callback[xMethod][xArg];
+                xSplitArgs  = xSource.split('.');
+                xSourceElem = aTreeElem;
+                
+                try {
+                    //if (xSource.indexOf('this.data-eezz-path') >= 0) {
+                    //    aJson.callback[xMethod][xArg] = xTreePath.concat( '/', aJson['name'] );
+                    //}                    
+                    if (xSource.indexOf('this.') >= 0) {
+                        aJson.callback[xMethod][xArg] = xSourceElem.getAttribute( xSplitArgs[1] );
+                    }
+                    else if (xSplitArgs.length > 1) {
+                        xSourceElem  = document.getElementsByName( xSplitArgs[0] )[0];
+                        if ( xSourceElem[ xSplitArgs[1] ]) {
+                            aJson.callback[xMethod][xArg] = xSourceElem[ xSplitArgs[1] ]; 
+                        }
+                        else {
+                            aJson.callback[xMethod][xArg] = xSourceElem.getAttribute( xSplitArgs[1] );
+                        }
+                    }
+                } catch (aException) {
+                    continue;
+                }
+            }
+        }
+    }
+}
+
 /* Process easy click events         */
 /* --------------------------------- */
 function easyClick(aEvent, aElement) {
@@ -946,6 +986,7 @@ function easyClick(aEvent, aElement) {
     var xJsnAssign;
     var xNewUpdate = {};
     var xSrcValue = '';
+    
 
     // Propagate the update request and generate callbacks for tree mode
     if (aJson.update) {        
@@ -1010,6 +1051,7 @@ function easyClick(aEvent, aElement) {
                         
                         if (aJson.callback) { 
                             xJsonPrepare   = {'callback': aJson.callback };
+                            evalThisArgs( xJsonPrepare, aTreeElem );
                             eezzWebSocket.send(JSON.stringify(xJsonPrepare));
                         }
                         
@@ -1094,7 +1136,8 @@ function easyClick(aEvent, aElement) {
             continue;
         }
     } 
-    
+
+    // Evaluate argument "this" on method level
     if (aJson.callback) {    
         aPost = true;
         var xNewCallback = {};
@@ -1110,6 +1153,9 @@ function easyClick(aEvent, aElement) {
         aJson.callback = xNewCallback;
     }
     
+    // Evaluate argument "this" on method-argument level
+    evalThisArgs( aJson, aTreeElem );
+/*    
     if (aJson.callback) {    
         aPost = true;
         for (xMethod in aJson.callback) {
@@ -1119,9 +1165,6 @@ function easyClick(aEvent, aElement) {
                 xSourceElem = aTreeElem;
                 
                 try {
-                    //if (xSource.indexOf('this.data-eezz-path') >= 0) {
-                    //    aJson.callback[xMethod][xArg] = xTreePath.concat( '/', aJson['name'] );
-                    //}                    
                     if (xSource.indexOf('this.') >= 0) {
                         aJson.callback[xMethod][xArg] = xSourceElem.getAttribute( xSplitArgs[1] );
                     }
@@ -1140,6 +1183,7 @@ function easyClick(aEvent, aElement) {
             }
         }
     }
+    */
 
     if (aPost == true) {
         var aResponse = JSON.stringify(aJson);

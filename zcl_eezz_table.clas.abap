@@ -67,8 +67,8 @@ CLASS ZCL_EEZZ_TABLE IMPLEMENTATION.
       x_tabledescr  type ref to cl_abap_tabledescr,
       x_table_comps type cl_abap_structdescr=>component_table.
 
-    zif_eezz_table~m_visible_items = 30.
-    zif_eezz_table~m_visible_block = 30.
+    zif_eezz_table~m_visible_items = 25.
+    zif_eezz_table~m_visible_block = 25.
     zif_eezz_table~m_offset        =  0.
     zif_eezz_table~m_topdown       =  1.
     m_resort                       =  0.
@@ -573,7 +573,7 @@ endmethod.
 
   method zif_eezz_table~send_message_pcp.
     try.
-        data(x_hash_name) = me->get_hash( iv_path = iv_path iv_line = iv_line  ).
+        data(x_hash_name) = me->get_hash( iv_path = iv_path iv_line = iv_line iv_clear = abap_true  ).
         data(pcp_message) = cl_ac_message_type_pcp=>create( ).
 
         loop at it_fields->* into data(x_pcp).

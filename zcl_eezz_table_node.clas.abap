@@ -8,6 +8,7 @@ public section.
   methods CONSTRUCTOR
     importing
       !IV_TABLE_NAME type STRING optional
+      !IV_DESTINATION type STRING optional
       !IO_NODE type ref to IF_IXML_NODE
       !IT_GLOBALS type ref to ZTTY_SYMBOLS
       !IO_EEZZ_TBL type ref to ZIF_EEZZ_TABLE .
@@ -22,54 +23,56 @@ public section.
     returning
       value(RT_TABLE) type ref to ZTTY_EEZZ_ROW .
   protected section.
-  private section.
+private section.
 
-    data mt_range type ref to ztty_eezz_row .
-    data m_dictionary type ref to ztty_dictionary .
-    data m_table_name type string .
-    data m_tbl_eezz type ref to zif_eezz_table .
-    data m_tbl_global type ref to ztty_symbols .
-    data m_table_node type ref to if_ixml_node .
+  data MT_RANGE type ref to ZTTY_EEZZ_ROW .
+  data M_DICTIONARY type ref to ZTTY_DICTIONARY .
+  data M_TABLE_NAME type STRING .
+  data M_TBL_EEZZ type ref to ZIF_EEZZ_TABLE .
+  data M_TBL_GLOBAL type ref to ZTTY_SYMBOLS .
+  data M_TABLE_NODE type ref to IF_IXML_NODE .
 
-    methods create_column_filter
-      importing
-        !iv_filter  type string
-        !it_columns type ref to ztty_eezz_row .
-    methods add_onclick_4_header
-      importing
-        !iv_parent type ref to if_ixml_node
-        !iv_node   type ref to if_ixml_node
-        !iv_idx    type int4 .
-    methods add_onclick_4_row
-      importing
-        !iv_node type ref to if_ixml_node
-        !iv_json type ref to zcl_eezz_json
-        !iv_idx  type int4
-        !iv_path type string optional .
-    methods add_onclick_event
-      importing
-        !iv_node type ref to if_ixml_node .
-    methods create_footer
-      importing
-        !iv_node   type ref to if_ixml_node
-        !iv_parent type ref to if_ixml_node .
-    methods create_header
-      importing
-        !iv_node   type ref to if_ixml_node
-        !iv_parent type ref to if_ixml_node .
-    methods create_row
-      importing
-        !iv_node              type ref to if_ixml_node
-        !iv_parent            type ref to if_ixml_node
-        !iv_row               type ref to ztty_eezz_row
-      returning
-        value(rt_replacement) type ref to ztty_eezz_row .
-    methods create_tile
-      importing
-        !iv_node   type ref to if_ixml_node
-        !iv_parent type ref to if_ixml_node
-        !iv_row    type ref to ztty_eezz_row
-        !iv_index  type int4 .
+  methods CREATE_COLUMN_FILTER
+    importing
+      !IV_FILTER type STRING
+      !IT_COLUMNS type ref to ZTTY_EEZZ_ROW .
+  methods ADD_ONCLICK_4_HEADER
+    importing
+      !IV_DESTINATION type STRING optional
+      !IV_PARENT type ref to IF_IXML_NODE
+      !IV_NODE type ref to IF_IXML_NODE
+      !IV_IDX type INT4 .
+  methods ADD_ONCLICK_4_ROW
+    importing
+      !IV_NODE type ref to IF_IXML_NODE
+      !IV_JSON type ref to ZCL_EEZZ_JSON
+      !IV_IDX type INT4
+      !IV_PATH type STRING optional .
+  methods ADD_ONCLICK_EVENT
+    importing
+      !IV_NODE type ref to IF_IXML_NODE .
+  methods CREATE_FOOTER
+    importing
+      !IV_NODE type ref to IF_IXML_NODE
+      !IV_PARENT type ref to IF_IXML_NODE .
+  methods CREATE_HEADER
+    importing
+      !IV_NODE type ref to IF_IXML_NODE
+      !IV_PARENT type ref to IF_IXML_NODE
+      !IV_DESTINATION type STRING optional .
+  methods CREATE_ROW
+    importing
+      !IV_NODE type ref to IF_IXML_NODE
+      !IV_PARENT type ref to IF_IXML_NODE
+      !IV_ROW type ref to ZTTY_EEZZ_ROW
+    returning
+      value(RT_REPLACEMENT) type ref to ZTTY_EEZZ_ROW .
+  methods CREATE_TILE
+    importing
+      !IV_NODE type ref to IF_IXML_NODE
+      !IV_PARENT type ref to IF_IXML_NODE
+      !IV_ROW type ref to ZTTY_EEZZ_ROW
+      !IV_INDEX type INT4 .
 ENDCLASS.
 
 
@@ -80,7 +83,7 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
   method add_onclick_4_header.
     " Add onClick event
     cast if_ixml_element( iv_node )->set_attribute( name = 'onclick' value  = 'easyClick(event,this)' ).
-    data(x_event_str) = zcl_eezz_json=>gen_header_event( iv_name = m_table_name iv_index = iv_idx ).
+    data(x_event_str) = zcl_eezz_json=>gen_header_event( iv_name = m_table_name iv_destination = iv_destination iv_index = iv_idx ).
     cast if_ixml_element( iv_node )->set_attribute( name = 'data-eezz-event' value = x_event_str ).
   endmethod.
 
@@ -154,7 +157,7 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
       elseif x_name eq 'thead'.
         x_refnode = x_next->clone( 0 ).
         m_table_node->append_child( x_refnode ).
-        me->create_header( iv_parent = x_refnode iv_node = x_next  ).
+        me->create_header( iv_parent = x_refnode iv_node = x_next iv_destination = iv_destination ).
       elseif x_name eq 'tfoot'.
         x_refnode = x_next->clone( 0 ).
         m_table_node->append_child( x_refnode ).
@@ -240,7 +243,12 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
       data(x_name_attr)  = cast if_ixml_element( x_next )->get_attribute_ns( 'name' ).
 
       if x_class_attr cs |eezzTreeNode|.
-        cast if_ixml_element( x_next )->set_attribute_ns( name = |data-eezz-path| value = x_constpath ).
+        data(x_ownpath) = cast if_ixml_element( x_next )->get_attribute_ns( name = |data-eezz-path| ).
+        if x_ownpath is initial.
+          cast if_ixml_element( x_next )->set_attribute_ns( name = |data-eezz-path| value = |{ x_constpath }| ).
+        else.
+          cast if_ixml_element( x_next )->set_attribute_ns( name = |data-eezz-path| value = |{ x_constpath }/{ x_ownpath }| ).
+        endif.
       endif.
 
       if x_eezz_attr is not bound.
@@ -300,6 +308,7 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
           if x_table_row is not bound.
             exit.
           endif.
+
           me->create_tile( iv_parent = x_reference iv_node = x_next  iv_row = x_table_row iv_index = x_idx ).
         enddo.
 
@@ -592,7 +601,7 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
 
             x_th->set_value( x_wac_column-c_value ).
             " add on_sort event
-            add_onclick_4_header( iv_parent = iv_parent iv_node = x_th iv_idx = x_wac_column-c_position ). "x_column_idx ).
+            add_onclick_4_header( iv_destination = iv_destination iv_parent = iv_parent iv_node = x_th iv_idx = x_wac_column-c_position ). "x_column_idx ).
 
             data(x_name_) = x_th->get_name( ).
             x_tr->append_child( x_th ).
@@ -864,6 +873,54 @@ CLASS ZCL_EEZZ_TABLE_NODE IMPLEMENTATION.
         data(x_global_entry) = m_tbl_global->*[  c_name =  m_table_name ].
         x_json ?= x_global_entry-c_eezz_json.
         add_onclick_4_row( iv_node = x_next iv_json = x_json  iv_idx = iv_index ).
+
+        data(x_next_attr) = cast if_ixml_element( x_next )->get_attribute_ns( 'data-eezz-attributes' ).
+        if strlen( x_next_attr ) > 0.
+          data(x_next_json_attr) = new zcl_eezz_json( iv_json = x_next_attr )->get( ).
+          loop at x_next_json_attr->* into data(xwa_next_attr).
+            x_string = xwa_next_attr-c_value.
+
+            data(x_test)    = '<name>{Udo}</name>'.
+
+            data(x_matcher) = cl_abap_matcher=>create(
+               pattern      = '\{([\w]+)\}'
+               text         = x_string
+               ignore_case  = abap_true ).
+
+            data(x_matches) = x_matcher->find_all( ).
+            data x_map_off type i value 0.
+            data x_map_len type i value 0.
+            data(x_result_stream) = new cl_abap_string_c_writer(  ).
+
+            if not x_matches is initial.
+              loop at x_matches into data(xsubwa).
+                loop at XSUBWA-SUBMATCHES into data(wa_regex).
+                  x_map_len = wa_regex-offset - x_map_off - 1.
+                  x_result_stream->write( substring( val = x_string off = x_map_off len = x_map_len ) ).
+
+                  data(x_substr) = to_upper( substring( val = x_string off = wa_regex-offset len = wa_regex-length ) ).
+                  data(x_subval) = iv_row->*[ c_field_name = x_substr ]-c_value.
+                  CONDENSE x_subval.
+                  data(xxx_tst)  = strlen( x_subval ).
+                  x_result_stream->write( x_subval ).
+                  x_map_off = wa_regex-offset + wa_regex-length + 1.
+                endloop.
+              endloop.
+              x_result_stream->write( substring( val = x_string off = x_map_off ) ).
+              x_string = x_result_stream->get_result_string( ).
+              cast if_ixml_element( x_next )->set_attribute_ns( name = xwa_next_attr-c_key  value = x_string ).
+            endif.
+
+            "data(x_result) = count( val = x_string regex = '\{*\}' ).
+            "do x_result times.
+            "  data(x_off) = find(  val = x_string regex = '\{*\}' occ = sy-index ).
+            "  data(x_sub) = match( val = x_string regex = '\{*\}' occ = sy-index ).
+            "  data(x_len) = strlen( x_sub ).
+            "  cast if_ixml_element( x_next )->set_attribute_ns( name = xwa_next_attr-c_key  value = x_sub ).
+            "enddo.
+          endloop.
+        endif.
+
       elseif x_type = if_ixml_node=>co_node_text and x_next->get_value( ) cp '*{*}'.
         split x_next->get_value( ) at '{' into data(x_label) data(x_fieldname).
         data(x_length) = strlen( x_fieldname ) - 1.
