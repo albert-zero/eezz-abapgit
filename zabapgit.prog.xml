@@ -6,16 +6,17 @@
     <NAME>ZABAPGIT</NAME>
     <STATE>A</STATE>
     <VARCL>X</VARCL>
+    <DBAPL>S</DBAPL>
     <SUBC>1</SUBC>
-    <RLOAD>E</RLOAD>
     <FIXPT>X</FIXPT>
+    <LDBNAME>D$S</LDBNAME>
     <UCCHECK>X</UCCHECK>
    </PROGDIR>
    <TPOOL>
     <item>
      <ID>R</ID>
-     <ENTRY>Program ZABAPGIT</ENTRY>
-     <LENGTH>16</LENGTH>
+     <ENTRY>abapGit</ENTRY>
+     <LENGTH>7</LENGTH>
     </item>
    </TPOOL>
   </asx:values>

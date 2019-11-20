@@ -706,7 +706,7 @@ CLASS ZCL_EEZZ_AGENT IMPLEMENTATION.
       "--cl_http_client=>create_by_url( EXPORTING url = x_str_path IMPORTING client = x_lo_client ).
 
       data(x_result_stream) = new cl_abap_string_c_writer(  ).
-      data(x_regex_pattern) = '<(img|area|br|link|input|hr)[a-zA-Z0-9/%=",.:#*\-_'';{}[:space:]\[\]]*>'.
+      data(x_regex_pattern) = '<(img|area|br|link|input|hr)[a-zA-Z0-9/%=",.:#*\-_'';(){}[:space:]\[\]]*>'.
 
       data(x_regex_parser)  = new cl_abap_regex( pattern = x_regex_pattern  ).
       data(x_regex_matcher) = x_regex_parser->create_matcher( text = x_str_doc ).
