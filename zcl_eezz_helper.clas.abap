@@ -102,9 +102,10 @@ CLASS ZCL_EEZZ_HELPER IMPLEMENTATION.
 
         if sy-subrc eq 0.
           if x_genkey is initial.
-            x_genkey = <fs_value>.
+            x_genkey = |{ <fs_value> }|.
           else.
-            concatenate x_genkey <fs_value> into x_genkey separated by '/'.
+            data(x_genfield) = |{ <fs_value> }|.
+            concatenate x_genkey x_genfield into x_genkey separated by '/'.
           endif.
         endif.
       endloop.
